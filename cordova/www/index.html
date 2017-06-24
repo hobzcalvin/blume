@@ -110,7 +110,15 @@
     -->
     <input type="text" id="picker"/>
 
-    <label><input type="checkbox" id="accelerometer">Accelerometer</label>
+    <label><input type="checkbox" id="rainbows">Rainbows</label>
+    <br/>
+    <label><input type="checkbox" id="movement">Movement</label>
+    <br/>
+    <label class="ctl-movement">Speed<input type="range" id="movement_speed"></label>
+    <br/>
+    <label class="ctl-movement">Size<input type="range" id="movement_size"></label>
+    <br/>
+    <label class="ctl-movement"><input type="checkbox" id="movement_vertical">Vertical</label>
 
 
 		<button id="disconnectButton" class="red wide" onclick="app.disconnect()">Disconnect</button>

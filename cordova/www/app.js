@@ -45,9 +45,15 @@ function sendColor(color) {
   hsv.h = Math.round(hsv.h / 360.0 * 255.0);
   hsv.s = Math.round(hsv.s * 255.0);
   hsv.v = Math.round(hsv.v * 255.0);
-  app.sendCommand(hsv.v, 'C', hsv.h, hsv.s);
-  //app.sendData([0x21, 4, hsv.v, 0x43, hsv.h, hsv.s]);
-  //app.sendData([0x21, 5, 123, 42, 69, 11]);
+  if ($('#movement').is(':checked')) {
+    app.sendCommand(hsv.v, 'M', hsv.h, hsv.s,
+      parseInt($('#movement_speed').val()),
+      parseInt($('#movement_size').val()) + (
+        $('#movement_vertical').is(':checked') ? 0 : 101));
+  } else {
+    app.sendCommand(hsv.v, $('#rainbows').is(':checked') ? 'R' : 'C',
+                    hsv.h, hsv.s);
+  }
 };
 
 app.initialize = function() {
@@ -61,30 +67,15 @@ app.initialize = function() {
     move: sendColor
   });
 
-  $('#accelerometer').change(function() {
-    if (this.checked) {
-      app.accelID = navigator.accelerometer.watchAcceleration(function(accel) {
-        //console.log('Acc ' + accel.x + ',' + accel.y + ',' + accel.z);
-        if (sendingSomething) {
-          return;
-        }
-        if (!app.connected) {
-          return;
-        }
-        var data = new Int16Array([Math.round(accel.x*100),
-                                   Math.round(accel.y*100),
-                                   Math.round(accel.z*100)/*43981, 1, -1*/]);
-        var tosend = new Uint8Array(data.byteLength + 2);
-        tosend[0] = 0x21;
-        tosend[1] = 0x58;
-        tosend.set(new Uint8Array(data.buffer), 2);
-        app.sendData(tosend);
-        //app.sendData(new Uint8Array(data.buffer));
-
-      }, null, { frequency: 50 });
-    } else {
-      navigator.accelerometer.clearWatch(app.accelID);
-    }
+  $('#rainbows').change(function() {
+    sendColor();
+  });
+  $('#movement').change(function() {
+    $('.ctl-movement').toggle(this.checked);
+    sendColor();
+  }).change();
+  $('.ctl-movement').change(function() {
+    sendColor();
   });
 
   app.startScan();
@@ -165,6 +156,8 @@ app.connectTo = function(address) {
 
 			console.log('Connected to ' + device.name);
 
+      app.sendAsk('D');
+
 			$('#loadingView').hide();
 			$('#scanResultView').hide();
 			$('#controlView').show();
@@ -221,6 +214,10 @@ app.sendCommand = function(brightness, mode, ...data) {
   app.sendData([0x21, cmd.length + data.length].concat(cmd, data));
 }
 
+app.sendAsk = function(question) {
+  app.sendData([0x21, 0, question.charCodeAt(0)]);
+}
+
 function toHexString(byteArray) {
   var s = '0x';
   byteArray.forEach(function(byte) {
@@ -275,12 +272,14 @@ function buf2hex(buffer) { // buffer is an ArrayBuffer
 app.receivedData = function(data) {
 	if (app.connected) {
 		var data = new Uint8Array(data);
-  console.log('RECV:' + toHexString(data));
+    console.log('RECV:' + toHexString(data));
 
 		if (data[0] === 0x58) {
       console.log("EEP!");
       sendColor();
-	  }
+	  } else if (data[0] === 0x21) {
+      console.log("question?! " + data.join(','));
+    }
 	} else {
 		// Disconnect and show an error message to the user.
 		app.disconnect('Disconnected');
