@@ -45,7 +45,9 @@ function sendColor(color) {
   hsv.h = Math.round(hsv.h / 360.0 * 255.0);
   hsv.s = Math.round(hsv.s * 255.0);
   hsv.v = Math.round(hsv.v * 255.0);
-  app.sendData([0x21, 0x43, hsv.h, hsv.s, hsv.v, 0x9B]);
+  app.sendCommand(hsv.v, 'C', hsv.h, hsv.s);
+  //app.sendData([0x21, 4, hsv.v, 0x43, hsv.h, hsv.s]);
+  //app.sendData([0x21, 5, 123, 42, 69, 11]);
 };
 
 app.initialize = function() {
@@ -84,6 +86,8 @@ app.initialize = function() {
       navigator.accelerometer.clearWatch(app.accelID);
     }
   });
+
+  app.startScan();
 };
 
 app.startScan = function() {
@@ -204,6 +208,18 @@ app.connectTo = function(address) {
 	console.log('Identifying service for communication');
 	device.connect(onConnectSuccess, onConnectFailure);
 };
+
+app.sendCommand = function(brightness, mode, ...data) {
+  // Commands always have brightness
+  var cmd = [brightness];
+  // Add mode if it was passed in
+  if (mode) {
+    // Convert one-character string to character code
+    cmd.push(mode.charCodeAt(0));
+  }
+  // !, length of the rest, the rest!
+  app.sendData([0x21, cmd.length + data.length].concat(cmd, data));
+}
 
 function toHexString(byteArray) {
   var s = '0x';
