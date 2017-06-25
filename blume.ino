@@ -48,7 +48,10 @@ void setup() {
   FastLED.setDither(BINARY_DITHER);
   // Turn everything off at first to avoid buggy lingering data on the chips
   FastLED.setBrightness(0);
-  FastLED.show();         
+  FastLED.show();
+
+  // FIRST TIME ONLY: Write a valid eepromStart address
+  //EEPROM.put(EEPROM_START_POINTER_ADDR, 0x2);
 
   // Initialize eepromStart: the address where we start writing our settings.
   EEPROM.get(EEPROM_START_POINTER_ADDR, eepromStart);
