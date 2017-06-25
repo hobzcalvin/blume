@@ -45,14 +45,15 @@ function sendColor(color) {
   hsv.h = Math.round(hsv.h / 360.0 * 255.0);
   hsv.s = Math.round(hsv.s * 255.0);
   hsv.v = Math.round(hsv.v * 255.0);
+  var rainbows = $('#rainbows').is(':checked');
   if ($('#movement').is(':checked')) {
     app.sendCommand(hsv.v, 'M', hsv.h, hsv.s,
-      parseInt($('#movement_speed').val()),
+      parseInt($('#movement_speed').val()) + (
+        rainbows ? 101 : 0),
       parseInt($('#movement_size').val()) + (
         $('#movement_vertical').is(':checked') ? 0 : 101));
   } else {
-    app.sendCommand(hsv.v, $('#rainbows').is(':checked') ? 'R' : 'C',
-                    hsv.h, hsv.s);
+    app.sendCommand(hsv.v, rainbows ? 'R' : 'C', hsv.h, hsv.s);
   }
 };
 
@@ -156,7 +157,7 @@ app.connectTo = function(address) {
 
 			console.log('Connected to ' + device.name);
 
-      app.sendAsk('D');
+      //app.sendAsk('D');
 
 			$('#loadingView').hide();
 			$('#scanResultView').hide();
