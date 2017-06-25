@@ -113,8 +113,8 @@ void checkSerial() {
     return;
   }
 
-  /*Serial.print(len);
-  Serial.print(" -> ");*/
+  Serial.print(len);
+  Serial.print(" -> ");
   // We have new settings! Apply them.
   restoreFromSettings();
   // Plan to save this if we don't get any more data
@@ -132,7 +132,7 @@ void checkSave() {
 }
 
 void restoreFromSettings() {
-  /*Serial.print("settings: ");
+  Serial.print("settings: ");
   Serial.print(settings.brightness);
   Serial.print(',');
   Serial.print(settings.mode);
@@ -143,7 +143,7 @@ void restoreFromSettings() {
   Serial.print(',');
   Serial.print(settings.c1);
   Serial.print(',');
-  Serial.println(settings.c2);*/
+  Serial.println(settings.c2);
   
   FastLED.setBrightness(settings.brightness);
   if (settings.mode == 'C') {
@@ -239,7 +239,7 @@ void runMovement(bool initialize) {
       } else {
         value = 0;
       }
-      if (initialize) {
+      /*if (initialize) {
         Serial.print("First: ");
         Serial.print(i);
         Serial.print(',');
@@ -248,7 +248,7 @@ void runMovement(bool initialize) {
         Serial.print(intensity);
         Serial.print(',');
         Serial.println(value);
-      }
+      }*/
       color = CHSV(settings.hue, settings.saturation, value);
     }
 

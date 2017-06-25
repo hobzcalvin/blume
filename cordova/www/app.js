@@ -33,24 +33,30 @@ app.DFRBLU_CHAR_RXTX_UUID = '0000dfb1-0000-1000-8000-00805f9b34fb';
 var sendingSomething = false;
 var sendOneMore = false;
 
-function sendColor(color) {
+var speedSlider = document.getElementById('movement_speed');
+var sizeSlider = document.getElementById('movement_size');
+
+function sendColor() {
+  if (!app.initialized) {
+    return;
+  }
   if (sendingSomething) {
     sendOneMore = true;
     return;
   }
-  if (!color) {
-    color = $("#picker").spectrum("get");
-  }
+  var color = $("#picker").spectrum("get");
   var hsv = color.toHsv();
   hsv.h = Math.round(hsv.h / 360.0 * 255.0);
   hsv.s = Math.round(hsv.s * 255.0);
   hsv.v = Math.round(hsv.v * 255.0);
   var rainbows = $('#rainbows').is(':checked');
+  var speed = parseInt(speedSlider.noUiSlider.get());
+  var size = parseInt(sizeSlider.noUiSlider.get());
   if ($('#movement').is(':checked')) {
     app.sendCommand(hsv.v, 'M', hsv.h, hsv.s,
-      parseInt($('#movement_speed').val()) + (
+      speed + (
         rainbows ? 101 : 0),
-      parseInt($('#movement_size').val()) + (
+      size + (
         $('#movement_vertical').is(':checked') ? 0 : 101));
   } else {
     app.sendCommand(hsv.v, rainbows ? 'R' : 'C', hsv.h, hsv.s);
@@ -61,11 +67,27 @@ app.initialize = function() {
 	app.connected = false;
 
   $('#picker').spectrum({
+    color: "#FF0000",
     flat: true,
     showInput: false,
     showButtons: false,
     preferredFormat: "hex",
     move: sendColor
+  });
+
+  noUiSlider.create(speedSlider, {
+    start: 45,
+    range: { min: 0, max: 100},
+  });
+  speedSlider.noUiSlider.on('update', function() {
+    sendColor();
+  });
+  noUiSlider.create(sizeSlider, {
+    start: 45,
+    range: { min: 0, max: 100},
+  });
+  sizeSlider.noUiSlider.on('update', function() {
+    sendColor();
   });
 
   $('#rainbows').change(function() {
@@ -79,6 +101,7 @@ app.initialize = function() {
     sendColor();
   });
 
+  app.initialized = true;
   app.startScan();
 };
 
@@ -309,3 +332,4 @@ app.disconnect = function(errorMessage) {
 	$('#controlView').hide();
 	$('#startView').show();
 };
+
