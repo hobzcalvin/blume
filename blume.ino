@@ -14,14 +14,16 @@
 #define EEPROM_SAVE_TIMEOUT_MS 5000
 #define EEPROM_START_POINTER_ADDR 0x0
 
-#define NUM_LEDS    40
-#define WIDTH       6
+#define NUM_LEDS    104
+#define BASE_WIDTH  6
+// If true, adds 1 to BASE_WIDTH for every other row
+#define STAGGERED   true
 // Add 1 if there's a remainder to pretend there's one last full row.
-#define HEIGHT      (NUM_LEDS / WIDTH + (NUM_LEDS % WIDTH ? 1 : 0))
-
 
 CRGB leds[NUM_LEDS];
 
+int width;
+int height;
 int eepromStart;
 long saveTarget;
 
@@ -50,9 +52,27 @@ void setup() {
   FastLED.setBrightness(0);
   FastLED.show();
 
+  int logical_num_leds;
+  if (STAGGERED) {
+    // Because they're staggered, logical width is twice plus one.
+    // Every other pixel is imaginary.
+    width = BASE_WIDTH * 2 + 1;
+    // Need to multiply this so the height calculation works out.
+    logical_num_leds = NUM_LEDS * 2;
+  } else {
+    // Normal width is fine here.
+    width = BASE_WIDTH;
+    logical_num_leds = NUM_LEDS;
+  }
+  // Add extra row if there's a remainder.
+  height = logical_num_leds / width + (logical_num_leds % width ? 1 : 0);
+  /*Serial.print(width);
+  Serial.print('x');
+  Serial.println(height);*/
+
+
   // FIRST TIME ONLY: Write a valid eepromStart address
   //EEPROM.put(EEPROM_START_POINTER_ADDR, 0x2);
-
   // Initialize eepromStart: the address where we start writing our settings.
   EEPROM.get(EEPROM_START_POINTER_ADDR, eepromStart);
   // Initialize settings
@@ -69,6 +89,56 @@ void loop() {
   FastLED.show();
   checkSerial();
   checkSave();
+}
+
+
+void setAt(byte x, byte y, CRGB color) {
+  if (STAGGERED) {
+    
+  } else {
+    if (x + y * width < NUM_LEDS) {
+      leds[x + y * width] = color;
+    }
+  }
+}
+void fillRow(byte row, CRGB color) {
+  if (STAGGERED) {
+    byte start = row * width / 2;
+    byte num = width / 2;
+    if (row % 2) {
+      start += 1;
+    } else {
+      num += 1;
+    }
+    if (start + num > NUM_LEDS) {
+      Serial.print("DANGER: ");
+      Serial.print(row);
+      Serial.print(',');
+      Serial.print(start);
+      Serial.print(',');
+      Serial.println(num);
+      return;
+    }
+    fill_solid(leds + start, num, color);
+  } else {
+    for (byte j = 0; j < width; j++) {
+      if (row * width + j < NUM_LEDS) {
+        leds[row * width + j] = color; 
+      }
+    }
+  }
+}
+void fillCol(byte col, CRGB color) {
+  if (STAGGERED) {
+    for (byte i = col / 2 + (col % 2) * (BASE_WIDTH + 1);
+         i < NUM_LEDS; i += width) {
+      leds[i] = color;
+    }
+  } else {
+    for (byte j = col; j < NUM_LEDS; j+= width) {
+      leds[j] = color;
+    }
+  }
 }
 
 void sendSeparately(byte* buf, int len) {
@@ -104,7 +174,7 @@ void checkSerial() {
     } else {
       if (question == 'D') {
         // Send dimensions.
-        byte dims[] = { '!', 'D', WIDTH, HEIGHT, NUM_LEDS };
+        byte dims[] = { '!', 'D', width, height, NUM_LEDS };
         sendSeparately(dims, sizeof(dims));
       }
     }
@@ -162,7 +232,7 @@ void restoreFromSettings() {
     runMovement(true);
   } else {
     Serial.print("Unknown mode: ");
-    Serial.println(char(settings.mode));
+    Serial.println(settings.mode);
   }
 }
 
@@ -170,6 +240,12 @@ void runMode() {
   if (settings.mode == 'M') {
     runMovement(false);
   }
+}
+
+float mapRange(float from,
+              float fromLow, float fromHigh,
+              float toLow, float toHigh) {
+  return toLow + (from-fromLow) / (fromHigh-fromLow) * (toHigh-toLow);
 }
 
 void runMovement(bool initialize) {
@@ -186,28 +262,17 @@ void runMovement(bool initialize) {
     // c2 is size 0-100 if vertical, 101-201 if horizontal
     rainbow = settings.c1 > 100;
     horizontal = settings.c2 > 100;
-    dimension = horizontal ? WIDTH : HEIGHT;
+    dimension = horizontal ? width : height;
     speed = float(int(rainbow ? settings.c1 - 101 : settings.c1) - 50) / 1000.0;
     // First convert size to [0,100]
     size = horizontal ? settings.c2 - 101 : settings.c2;
     if (rainbow) {
       // "size" isn't really true here
-      size = (size / 100.0 * 256.0 / dimension * 2.0);
+      //size = (size / 100.0 * 256.0 / dimension * 2.0);
+      size = mapRange(size, 0, 100, 1, 256.0 / dimension * 2.0);
     } else {
-      size = dimension * (size / 280.0 + 0.15);
+      size = mapRange(size, 0, 100, 2, dimension - 2);
     }
-
-    /*
-    Serial.print("movementInit: ");
-    Serial.print(rainbow);
-    Serial.print(',');
-    Serial.print(horizontal);
-    Serial.print(',');
-    Serial.print(dimension);
-    Serial.print(',');
-    Serial.print(speed, 5);
-    Serial.print(',');
-    Serial.println(size);*/
   } else {
     float frameTime = millis() - lastFrame;
     position += speed * frameTime;
@@ -233,38 +298,22 @@ void runMovement(bool initialize) {
       color = CHSV(int(float(settings.hue) + distance * size) % 256, settings.saturation, 255);
     } else {
       byte value;
-      float intensity = (size - distance) / 2.0;
-      float moveFadeDist = 0.5; // 0.5 good for bigger
+      float intensity = size / 2.0 - distance;
+      float moveFadeDist = 0.5;
       if (intensity > moveFadeDist) {
         value = 255;
-      } else if (intensity > 0) {
-        value = 255.0 * intensity / moveFadeDist;
+      } else if (intensity > -moveFadeDist) {
+        value = 255.0 * (intensity + moveFadeDist);
       } else {
         value = 0;
       }
-      /*if (initialize) {
-        Serial.print("First: ");
-        Serial.print(i);
-        Serial.print(',');
-        Serial.print(distance);
-        Serial.print(',');
-        Serial.print(intensity);
-        Serial.print(',');
-        Serial.println(value);
-      }*/
       color = CHSV(settings.hue, settings.saturation, value);
     }
 
     if (horizontal) {
-      for (byte j = i; j < NUM_LEDS; j+= WIDTH) {
-        leds[j] = color;
-      }
+      fillCol(i, color);    
     } else {
-      for (byte j = 0; j < WIDTH; j++) {
-        if (i * WIDTH + j < NUM_LEDS) {
-          leds[i * WIDTH + j] = color; 
-        }
-      }
+      fillRow(i, color);
     }
   }
   
