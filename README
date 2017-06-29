@@ -1,0 +1,5 @@
+To Build App:
+- npm install -g cordova
+- cd cordova/www/
+- cordova platform add ios (or android)
+- cordova run ios
