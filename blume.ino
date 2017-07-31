@@ -14,7 +14,7 @@
 #define EEPROM_SAVE_TIMEOUT_MS 5000
 #define EEPROM_START_POINTER_ADDR 0x0
 
-#define NUM_LEDS    104
+#define NUM_LEDS    40
 #define BASE_WIDTH  6
 // If true, adds 1 to BASE_WIDTH for every other row
 #define STAGGERED   true
@@ -71,8 +71,8 @@ void setup() {
   Serial.println(height);*/
 
 
-  // FIRST TIME ONLY: Write a valid eepromStart address
-  //EEPROM.put(EEPROM_START_POINTER_ADDR, 0x2);
+  // Should be first time only: Write a valid eepromStart address
+  EEPROM.put(EEPROM_START_POINTER_ADDR, 0x2);
   // Initialize eepromStart: the address where we start writing our settings.
   EEPROM.get(EEPROM_START_POINTER_ADDR, eepromStart);
   // Initialize settings
@@ -111,13 +111,7 @@ void fillRow(byte row, CRGB color) {
       num += 1;
     }
     if (start + num > NUM_LEDS) {
-      Serial.print("DANGER: ");
-      Serial.print(row);
-      Serial.print(',');
-      Serial.print(start);
-      Serial.print(',');
-      Serial.println(num);
-      return;
+      num = NUM_LEDS - start;
     }
     fill_solid(leds + start, num, color);
   } else {
