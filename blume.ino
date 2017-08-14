@@ -10,6 +10,11 @@
 #define CHIPSET     APA102
 #define APA_MHZ 4
 #define LED_SETTINGS CHIPSET, DATA_PIN, CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(APA_MHZ)
+/* For LPD8806:
+#define COLOR_ORDER BRG
+#define CHIPSET     LPD8806
+#define LED_SETTINGS CHIPSET, CLOCK_PIN, DATA_PIN, COLOR_ORDER
+ */
 
 #define EEPROM_SAVE_TIMEOUT_MS 5000
 #define EEPROM_START_POINTER_ADDR 0x0
@@ -81,6 +86,22 @@ void setup() {
   restoreFromSettings();
   // Make sure we won't save unless we get new settings
   saveTarget = 0;
+
+  /*
+  FastLED.setBrightness(255);
+  fill_solid(leds, NUM_LEDS, 0xFF0000);
+  FastLED.delay(1000);
+  Serial.println("did the thing");
+  fill_solid(leds, NUM_LEDS, 0x00FF00);
+  FastLED.delay(1000);
+  Serial.println("yep");
+  fill_solid(leds, NUM_LEDS, 0x0000FF);
+  FastLED.delay(1000);
+  Serial.println("done");
+  fill_solid(leds, NUM_LEDS, 0x000000);
+  FastLED.delay(1000);
+  Serial.println("clear");
+  */
 }
 
 
