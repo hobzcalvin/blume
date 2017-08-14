@@ -17,11 +17,15 @@
     <allow-intent href="geo:*" />
     <platform name="android">
         <allow-intent href="market:*" />
+        <preference name="CodePushDeploymentKey" value="9MMniBGRgssJyu-toCQLAA6gV5js70b36c57-c09c-4a4c-8637-6bd98533ff92" />
     </platform>
     <platform name="ios">
         <allow-intent href="itms:*" />
         <allow-intent href="itms-apps:*" />
+        <preference name="CodePushDeploymentKey" value="Po0UxFCf_IiLDPFB9m8diwtKhQZv70b36c57-c09c-4a4c-8637-6bd98533ff92" />
     </platform>
     <engine name="ios" spec="^4.4.0" />
     <plugin name="cordova-plugin-ble" spec="git+https://github.com/evothings/cordova-ble.git#2.0.1" />
+    <plugin name="cordova-plugin-code-push" spec="^1.9.5-beta" />
+    <plugin name="cordova-plugin-whitelist" spec="^1.3.2" />
 </widget>
