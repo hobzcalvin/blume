@@ -47,6 +47,33 @@ function sendColor() {
   }
 };
 
+sendImage = function(brightness) {
+  var img = new Image();
+  img.src = 'img/paint/mario.png';
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+  img.onload = function() {
+    window.theimg = img;
+    var width = Math.min(25, Math.round(img.naturalWidth * 50.0 / img.naturalHeight));
+    ctx.drawImage(img, 0, 0, width, 50);
+    // TODO: Needed?
+    img.style.display = 'none';
+    var arr = new Uint8Array(50 * width);
+    var data = ctx.getImageData(0, 0, width, 50).data;
+    for (var i = 0; i < width; i++) {
+      for (var j = 0; j < 50; j++) {
+        var idx = ((50 - 1 - j) * width + i) * 4;
+        arr[i * 50 + j] = (
+          (Math.floor(data[idx + 0] / 32) << 5) +
+          (Math.floor(data[idx + 1] / 32) << 2) +
+          (Math.floor(data[idx + 2] / 64) << 0));
+      }
+    }
+    app.sendCommand(brightness, 'P', width, 0);
+    app.sendData(arr);
+  };
+}
+
 app.initialize = function() {
 
   $('#picker').spectrum({
@@ -177,7 +204,7 @@ app.connectTo = function(address) {
       device.enableNotification(
         app.DFRBLU_SERVICE_UUID,
         app.DFRBLU_CHAR_RXTX_UUID,
-        app.receivedData,
+        app.receivedData.bind(device),
         function(errorCode) {
           console.log('BLE enableNotification error: ' + errorCode);
         },
@@ -185,6 +212,9 @@ app.connectTo = function(address) {
 
       device.connectPending = false;
       listDevices();
+
+      // TODO: Only need to send this once per connected device...
+      app.sendAsk('D');
     }
 
     function onServiceFailure(errorCode) {
@@ -254,6 +284,15 @@ app.sendData = function(data) {
     tosend = data;
   }
 
+  if (tosend.length > 16) {
+    //console.log("chunking data of length", tosend.length);
+    for (var i = 0; i < tosend.length; i += 16) {
+      app.sendData(tosend.slice(i, i+16));
+    }
+    return;
+  }
+  //console.log("sending data of length", tosend.length);
+
   for (var i in app.devices) {
     var device = app.devices[i];
     if (!device.isConnected()) {
@@ -264,6 +303,7 @@ app.sendData = function(data) {
       app.DFRBLU_CHAR_RXTX_UUID,
       tosend,
       function() {
+        //console.log("SENT: " + toHexString(tosend));
         pendingSends--;
         if (!pendingSends && sendOneMore) {
           sendOneMore = false;
@@ -293,7 +333,14 @@ app.receivedData = function(data) {
     console.log("EEP!");
     sendColor();
   } else if (data[0] === 0x21) {
-    console.log("question?! " + data.join(','));
+    console.log("question?! " + data.join(','), this);
+    if (data[1] === 0x44) {
+      // Got dimensions result. "this" is the sending device.
+      this.width = data[2];
+      this.height = data[3];
+      this.numLeds = data[4];
+      this.maxFrames = data[5];
+    }
   }
 };
 

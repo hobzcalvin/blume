@@ -19,11 +19,12 @@
 #define EEPROM_SAVE_TIMEOUT_MS 5000
 #define EEPROM_START_POINTER_ADDR 0x0
 
-#define NUM_LEDS    40
-#define BASE_WIDTH  6
+#define NUM_LEDS    50
+#define BASE_WIDTH  1
 // If true, adds 1 to BASE_WIDTH for every other row
-#define STAGGERED   true
-// Add 1 if there's a remainder to pretend there's one last full row.
+#define STAGGERED   false
+// Varies by NUM_LEDS to ensure not overloading SRAM
+#define MAX_FRAMES 25
 
 CRGB leds[NUM_LEDS];
 
@@ -42,6 +43,10 @@ struct SavedSettings {
   byte c2;
 };
 SavedSettings settings;
+
+// Stored frames of POV/light-painting image, used by mode 'P'
+// Each pixel is in 8-bit RRRGGGBB format
+byte ledFrames[NUM_LEDS * MAX_FRAMES];
 
 void setup() {
   // Initialize serial connection to bluetooth chip
@@ -189,7 +194,7 @@ void checkSerial() {
     } else {
       if (question == 'D') {
         // Send dimensions.
-        byte dims[] = { '!', 'D', width, height, NUM_LEDS };
+        byte dims[] = { '!', 'D', width, height, NUM_LEDS, MAX_FRAMES };
         sendSeparately(dims, sizeof(dims));
       }
     }
@@ -199,6 +204,15 @@ void checkSerial() {
   if (!Serial.readBytes((byte*)&settings, min(sizeof(settings), len))) {
     Serial.println("failed to read len bytes");
     return;
+  }
+  if (settings.mode == 'P') {
+    // hue means number of frames in this case
+    settings.hue = min(settings.hue, MAX_FRAMES);
+    if (!Serial.readBytes(ledFrames, settings.hue * NUM_LEDS)) {
+      Serial.print("failed to read ");
+      Serial.print(settings.hue);
+      Serial.println(" image frames");
+    }
   }
 
   /*Serial.print(len);
@@ -211,7 +225,9 @@ void checkSerial() {
 
 void checkSave() {
   // Save settings to EEPROM if we have a target and we've hit it
-  if (saveTarget && millis() >= saveTarget) {
+  if (saveTarget && millis() >= saveTarget &&
+      // Special case: pixel mode only works in volatile memory
+      settings.mode != 'P') {
     // Uses update() so only rewrites if necessary
     EEPROM.put(eepromStart, settings);
     saveTarget = 0;
@@ -245,6 +261,8 @@ void restoreFromSettings() {
     fill_rainbow(leds, NUM_LEDS, settings.hue, delta);
   } else if (settings.mode == 'M') {
     runMovement(true);
+  } else if (settings.mode == 'P') {
+    runPixels(true);
   } else {
     Serial.print("Unknown mode: ");
     Serial.println(settings.mode);
@@ -254,6 +272,8 @@ void restoreFromSettings() {
 void runMode() {
   if (settings.mode == 'M') {
     runMovement(false);
+  } else if (settings.mode == 'P') {
+    runPixels(false);
   }
 }
 
@@ -334,6 +354,26 @@ void runMovement(bool initialize) {
   
   // Remember when this frame happened.
   lastFrame = millis();
+}
+
+void runPixels(bool initialize) {
+  static byte frame;
+  static long target_ms;
+  if (initialize) {
+    frame = 0;
+  }
+  if (initialize || millis() >= target_ms) {
+    for (byte i = 0; i < NUM_LEDS; i++) {
+      byte color = ledFrames[frame * NUM_LEDS + i];
+      leds[i] = CRGB(
+        ((color & 0b11100000) >> 5) * 36,
+        ((color & 0b00011100) >> 2) * 36,
+        ((color & 0b00000011) >> 0) * 85
+      );
+    }
+    frame = (frame + 1) % settings.hue;
+    target_ms = millis() + long(settings.saturation) * 4;
+  }
 }
 
 
