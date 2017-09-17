@@ -36,14 +36,21 @@ function sendColor() {
   var rainbows = $('#rainbows').is(':checked');
   var speed = parseInt(speedSlider.noUiSlider.get());
   var size = parseInt(sizeSlider.noUiSlider.get());
+  /*
+  if (!hsv.h) {
+    console.log("sending...");
+    sendImage(255);//hsv.v);
+    return;
+  }
+  */
   if ($('#movement').is(':checked')) {
-    app.sendCommand(hsv.v, 'M', hsv.h, hsv.s,
+    app.sendCommand(null, hsv.v, 'M', hsv.h, hsv.s,
       speed + (
         rainbows ? 101 : 0),
       size + (
         $('#movement_vertical').is(':checked') ? 0 : 101));
   } else {
-    app.sendCommand(hsv.v, rainbows ? 'R' : 'C', hsv.h, hsv.s);
+    app.sendCommand(null, hsv.v, rainbows ? 'R' : 'C', hsv.h, hsv.s);
   }
 };
 
@@ -53,24 +60,35 @@ sendImage = function(brightness) {
   var canvas = document.getElementById('canvas');
   var ctx = canvas.getContext('2d');
   img.onload = function() {
-    window.theimg = img;
-    var width = Math.min(25, Math.round(img.naturalWidth * 50.0 / img.naturalHeight));
-    ctx.drawImage(img, 0, 0, width, 50);
-    // TODO: Needed?
-    img.style.display = 'none';
-    var arr = new Uint8Array(50 * width);
-    var data = ctx.getImageData(0, 0, width, 50).data;
-    for (var i = 0; i < width; i++) {
-      for (var j = 0; j < 50; j++) {
-        var idx = ((50 - 1 - j) * width + i) * 4;
-        arr[i * 50 + j] = (
-          (Math.floor(data[idx + 0] / 32) << 5) +
-          (Math.floor(data[idx + 1] / 32) << 2) +
-          (Math.floor(data[idx + 2] / 64) << 0));
+    // TODO: Avoid recomputing all this stuff for 2 (poi) devices
+    // of the same dimensions.
+    for (var i in app.devices) {
+      var device = app.devices[i];
+      if (!device.isConnected() || !device.height || !device.maxFrames
+          || device.width !== 1) {
+        console.log("Skipping disconnected or non-POV device", device);
+        continue;
       }
+      var width = Math.min(
+        device.maxFrames,
+        Math.round(img.naturalWidth * device.height / img.naturalHeight));
+      ctx.drawImage(img, 0, 0, width, device.height);
+      // TODO: Needed?
+      img.style.display = 'none';
+      var arr = new Uint8Array(device.height * width);
+      var data = ctx.getImageData(0, 0, width, device.height).data;
+      for (var i = 0; i < width; i++) {
+        for (var j = 0; j < device.height; j++) {
+          var idx = ((device.height - 1 - j) * width + i) * 4;
+          arr[i * device.height + j] = (
+            (Math.floor(data[idx + 0] / 32) << 5) +
+            (Math.floor(data[idx + 1] / 32) << 2) +
+            (Math.floor(data[idx + 2] / 64) << 0));
+        }
+      }
+      app.sendCommand(device, brightness, 'P', width, 0);
+      app.sendData(device, arr);
     }
-    app.sendCommand(brightness, 'P', width, 0);
-    app.sendData(arr);
   };
 }
 
@@ -213,8 +231,7 @@ app.connectTo = function(address) {
       device.connectPending = false;
       listDevices();
 
-      // TODO: Only need to send this once per connected device...
-      app.sendAsk('D');
+      app.sendAsk(device, 'D');
     }
 
     function onServiceFailure(errorCode) {
@@ -233,9 +250,6 @@ app.connectTo = function(address) {
     device.connectPending = false;
   }
 
-  // Stop scanning
-  //evothings.easyble.stopScan();
-
   // Connect to our device
   console.log('Identifying service for communication');
   device.connect(onConnectSuccess, onConnectFailure);
@@ -250,7 +264,7 @@ app.disconnectFrom = function(address) {
   listDevices();
 };
 
-app.sendCommand = function(brightness, mode, ...data) {
+app.sendCommand = function(devices, brightness, mode, ...data) {
   // Commands always have brightness
   var cmd = [brightness];
   // Add mode if it was passed in
@@ -259,11 +273,11 @@ app.sendCommand = function(brightness, mode, ...data) {
     cmd.push(mode.charCodeAt(0));
   }
   // !, length of the rest, the rest!
-  app.sendData([0x21, cmd.length + data.length].concat(cmd, data));
+  app.sendData(devices, [0x21, cmd.length + data.length].concat(cmd, data));
 }
 
-app.sendAsk = function(question) {
-  app.sendData([0x21, 0, question.charCodeAt(0)]);
+app.sendAsk = function(devices, question) {
+  app.sendData(devices, [0x21, 0, question.charCodeAt(0)]);
 }
 
 function toHexString(byteArray) {
@@ -274,7 +288,7 @@ function toHexString(byteArray) {
   return s;
 }
 
-app.sendData = function(data) {
+app.sendData = function(devices, data) {
   var tosend;
   if ((typeof data) == 'string') {
     tosend = new TextEncoder("ascii").encode(data);
@@ -283,18 +297,22 @@ app.sendData = function(data) {
   } else {
     tosend = data;
   }
-
   if (tosend.length > 16) {
     //console.log("chunking data of length", tosend.length);
     for (var i = 0; i < tosend.length; i += 16) {
-      app.sendData(tosend.slice(i, i+16));
+      app.sendData(devices, tosend.slice(i, i+16));
     }
     return;
   }
   //console.log("sending data of length", tosend.length);
+  if (!devices) {
+    devices = app.devices;
+  } else if (!Array.isArray(devices)) {
+    devices = [devices];
+  }
 
-  for (var i in app.devices) {
-    var device = app.devices[i];
+  for (var i in devices) {
+    var device = devices[i];
     if (!device.isConnected()) {
       continue;
     }
@@ -317,7 +335,8 @@ app.sendData = function(data) {
           sendOneMore = false;
           sendColor();
         }
-      });
+      }
+    );
   }
 };
 
@@ -344,3 +363,12 @@ app.receivedData = function(data) {
   }
 };
 
+// DEBUG MODE: Uncomment this stuff to run the app in the browser.
+/*
+$(function() {
+  $('#controlView').show();
+  $('#canvas').show();
+  // This will throw errors without evothings libraries defined.
+  app.initialize();
+});
+*/
