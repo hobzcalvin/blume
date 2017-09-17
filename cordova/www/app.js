@@ -63,31 +63,31 @@ sendImage = function(brightness) {
     // TODO: Avoid recomputing all this stuff for 2 (poi) devices
     // of the same dimensions.
     for (var i in app.devices) {
-      var device = app.devices[i];
-      if (!device.isConnected() || !device.height || !device.maxFrames
-          || device.width !== 1) {
-        console.log("Skipping disconnected or non-POV device", device);
+      var dev = app.devices[i];
+      if (!dev.isConnected() || !dev.height || !dev.maxFrames
+          || dev.width !== 1) {
+        console.log("Skipping disconnected or non-POV device", dev);
         continue;
       }
       var width = Math.min(
-        device.maxFrames,
-        Math.round(img.naturalWidth * device.height / img.naturalHeight));
-      ctx.drawImage(img, 0, 0, width, device.height);
+        dev.maxFrames,
+        Math.round(img.naturalWidth * dev.height / img.naturalHeight));
+      ctx.drawImage(img, 0, 0, width, dev.height);
       // TODO: Needed?
       img.style.display = 'none';
-      var arr = new Uint8Array(device.height * width);
-      var data = ctx.getImageData(0, 0, width, device.height).data;
+      var arr = new Uint8Array(dev.height * width);
+      var data = ctx.getImageData(0, 0, width, dev.height).data;
       for (var i = 0; i < width; i++) {
-        for (var j = 0; j < device.height; j++) {
-          var idx = ((device.height - 1 - j) * width + i) * 4;
-          arr[i * device.height + j] = (
+        for (var j = 0; j < dev.height; j++) {
+          var idx = ((dev.height - 1 - j) * width + i) * 4;
+          arr[i * dev.height + j] = (
             (Math.floor(data[idx + 0] / 32) << 5) +
             (Math.floor(data[idx + 1] / 32) << 2) +
             (Math.floor(data[idx + 2] / 64) << 0));
         }
       }
-      app.sendCommand(device, brightness, 'P', width, 0);
-      app.sendData(device, arr);
+      app.sendCommand(dev, brightness, 'P', width, 0);
+      app.sendData(dev, arr);
     }
   };
 }
@@ -144,20 +144,20 @@ function listDevices() {
   }
   var anyConnected = false;
   for (var i in app.devices) {
-    var device = app.devices[i];
+    var dev = app.devices[i];
     var htmlString = '<div class="deviceContainer';
-    if (device.isConnected()) {
+    if (dev.isConnected()) {
       htmlString += ' connected';
       anyConnected = true;
     }
     htmlString += '" onclick="app.toggleConnect(\'' +
-      device.address + '\')">' +
-      '<p class="deviceName">' + device.name;
-    if (device.connectPending) {
+      dev.address + '\')">' +
+      '<p class="deviceName">' + dev.name;
+    if (dev.connectPending) {
       htmlString += ' Connecting...';
     }
     htmlString += '</p>' +
-      '<p class="deviceAddress">' + device.address + '</p>' +
+      '<p class="deviceAddress">' + dev.address + '</p>' +
       '</div>';
     $('#scanResultView').append($(htmlString));
   }
@@ -178,15 +178,15 @@ app.startScan = function() {
 
   $('#scanResultView').show();
 
-  function onScanSuccess(device) {
-    if (device.name &&
-        (device.name.indexOf('Blume') !== -1 ||
-         device.name.indexOf('Bluno') !== -1)) {
-      app.devices[device.address] = device;
+  function onScanSuccess(dev) {
+    if (dev.name &&
+        (dev.name.indexOf('Blume') !== -1 ||
+         dev.name.indexOf('Bluno') !== -1)) {
+      app.devices[dev.address] = dev;
 
       console.log(
-        'Found: ' + device.name + ', ' +
-        device.address + ', ' + device.rssi);
+        'Found: ' + dev.name + ', ' +
+        dev.address + ', ' + dev.rssi);
 
       listDevices();
     }
@@ -203,8 +203,8 @@ app.startScan = function() {
 };
 
 app.toggleConnect = function(address) {
-  var device = app.devices[address];
-  if (device && device.isConnected()) {
+  var dev = app.devices[address];
+  if (dev && dev.isConnected()) {
     app.disconnectFrom(address);
   } else {
     app.connectTo(address);
@@ -212,55 +212,55 @@ app.toggleConnect = function(address) {
 }
 
 app.connectTo = function(address) {
-  var device = app.devices[address];
+  var dev = app.devices[address];
 
-  function onConnectSuccess(device) {
-    function onServiceSuccess(device) {
+  function onConnectSuccess(dev) {
+    function onServiceSuccess(dev) {
 
-      console.log('Connected to ' + device.name);
+      console.log('Connected to ' + dev.name);
 
-      device.enableNotification(
+      dev.enableNotification(
         app.DFRBLU_SERVICE_UUID,
         app.DFRBLU_CHAR_RXTX_UUID,
-        app.receivedData.bind(device),
+        app.receivedData.bind(dev),
         function(errorCode) {
           console.log('BLE enableNotification error: ' + errorCode);
         },
         { writeConfigDescriptor: false });
 
-      device.connectPending = false;
+      dev.connectPending = false;
       listDevices();
 
-      app.sendAsk(device, 'D');
+      app.sendAsk(dev, 'D');
     }
 
     function onServiceFailure(errorCode) {
       // Write debug information to console.
       console.log('Error reading services: ' + errorCode);
-      device.connectPending = false;
+      dev.connectPending = false;
     }
 
     // Connect to the appropriate BLE service
-    device.readServices([app.DFRBLU_SERVICE_UUID], onServiceSuccess, onServiceFailure);
+    dev.readServices([app.DFRBLU_SERVICE_UUID], onServiceSuccess, onServiceFailure);
   }
 
   function onConnectFailure(errorCode) {
     // Write debug information to console
     console.log('Error ' + errorCode);
-    device.connectPending = false;
+    dev.connectPending = false;
   }
 
   // Connect to our device
   console.log('Identifying service for communication');
-  device.connect(onConnectSuccess, onConnectFailure);
-  device.connectPending = true;
+  dev.connect(onConnectSuccess, onConnectFailure);
+  dev.connectPending = true;
   listDevices();
 };
 
 app.disconnectFrom = function(address) {
-  var device = app.devices[address];
-  device.connectPending = false;
-  device.close();
+  var dev = app.devices[address];
+  dev.connectPending = false;
+  dev.close();
   listDevices();
 };
 
@@ -312,12 +312,12 @@ app.sendData = function(devices, data) {
   }
 
   for (var i in devices) {
-    var device = devices[i];
-    if (!device.isConnected()) {
+    var dev = devices[i];
+    if (!dev.isConnected()) {
       continue;
     }
     pendingSends++;
-    device.writeCharacteristic(
+    dev.writeCharacteristic(
       app.DFRBLU_CHAR_RXTX_UUID,
       tosend,
       function() {
