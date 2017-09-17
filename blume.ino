@@ -4,27 +4,31 @@
 #include <FastLED.h>
 
 
-#define DATA_PIN    A0
-#define CLOCK_PIN   5
+#define DATA_PIN_0    A0
+#define DATA_PIN_1    A1
+#define CLOCK_PIN_0   5
+#define CLOCK_PIN_1   4
 #define COLOR_ORDER BGR
 #define CHIPSET     APA102
 #define APA_MHZ 4
-#define LED_SETTINGS CHIPSET, DATA_PIN, CLOCK_PIN, COLOR_ORDER, DATA_RATE_MHZ(APA_MHZ)
+#define LED_SETTINGS_0 CHIPSET, DATA_PIN_0, CLOCK_PIN_0, COLOR_ORDER, DATA_RATE_MHZ(APA_MHZ)
+#define LED_SETTINGS_1 CHIPSET, DATA_PIN_1, CLOCK_PIN_1, COLOR_ORDER, DATA_RATE_MHZ(APA_MHZ)
 /* For LPD8806:
 #define COLOR_ORDER BRG
 #define CHIPSET     LPD8806
-#define LED_SETTINGS CHIPSET, CLOCK_PIN, DATA_PIN, COLOR_ORDER
+#define LED_SETTINGS_0 CHIPSET, CLOCK_PIN_0, DATA_PIN_0, COLOR_ORDER
+#define LED_SETTINGS_1 CHIPSET, CLOCK_PIN_1, DATA_PIN_0, COLOR_ORDER
  */
 
 #define EEPROM_SAVE_TIMEOUT_MS 5000
 #define EEPROM_START_POINTER_ADDR 0x0
 
-#define NUM_LEDS    50
+#define NUM_LEDS    18
 #define BASE_WIDTH  1
 // If true, adds 1 to BASE_WIDTH for every other row
 #define STAGGERED   false
 // Varies by NUM_LEDS to ensure not overloading SRAM
-#define MAX_FRAMES 25
+#define MAX_FRAMES 64
 
 CRGB leds[NUM_LEDS];
 
@@ -54,9 +58,12 @@ void setup() {
   // Only wait 500ms for new data before giving up on a command
   Serial.setTimeout(500);
   
-  pinMode(DATA_PIN, OUTPUT);
-  pinMode(CLOCK_PIN, OUTPUT);
-  FastLED.addLeds<LED_SETTINGS>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+  pinMode(DATA_PIN_0, OUTPUT);
+  pinMode(CLOCK_PIN_0, OUTPUT);
+  pinMode(DATA_PIN_1, OUTPUT);
+  pinMode(CLOCK_PIN_1, OUTPUT);
+  FastLED.addLeds<LED_SETTINGS_0>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_SETTINGS_1>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
   FastLED.setDither(BINARY_DITHER);
   // Turn everything off at first to avoid buggy lingering data on the chips
   FastLED.setBrightness(0);
