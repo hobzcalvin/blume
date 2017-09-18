@@ -3,7 +3,14 @@
 #include <EEPROM.h>
 #include <FastLED.h>
 
+// These settings change per project!
+#define NUM_LEDS    18
+#define BASE_WIDTH  1
+// If true, adds 1 to BASE_WIDTH for every other row
+#define STAGGERED   false
 
+// Only change these settings if you're wired to different pins, using a non-APA102 chipset,
+// using a different COLOR_ORDER for RGB, etc.
 #define DATA_PIN_0    A0
 #define DATA_PIN_1    A1
 #define CLOCK_PIN_0   5
@@ -20,17 +27,20 @@
 #define LED_SETTINGS_1 CHIPSET, CLOCK_PIN_1, DATA_PIN_0, COLOR_ORDER
  */
 
+
+// EVERYTHING BELOW HERE WON'T CHANGE FOR A NORMAL PROJECT.
+
+
 #define EEPROM_SAVE_TIMEOUT_MS 5000
 #define EEPROM_START_POINTER_ADDR 0x0
 
-#define NUM_LEDS    18
-#define BASE_WIDTH  1
-// If true, adds 1 to BASE_WIDTH for every other row
-#define STAGGERED   false
-// Varies by NUM_LEDS to ensure not overloading SRAM
-#define MAX_FRAMES 64
-
 CRGB leds[NUM_LEDS];
+
+// Calculate max number of frames we can store in SRAM
+#define SRAM_SIZE 2048
+// Assume we need this much for everything else
+#define VAR_ALLOWANCE 600
+#define MAX_FRAMES ((SRAM_SIZE - VAR_ALLOWANCE) / NUM_LEDS)
 
 int width;
 int height;
@@ -103,16 +113,16 @@ void setup() {
   FastLED.setBrightness(255);
   fill_solid(leds, NUM_LEDS, 0xFF0000);
   FastLED.delay(1000);
-  Serial.println("did the thing");
+  Serial.println(F("did the thing"));
   fill_solid(leds, NUM_LEDS, 0x00FF00);
   FastLED.delay(1000);
-  Serial.println("yep");
+  Serial.println(F("yep"));
   fill_solid(leds, NUM_LEDS, 0x0000FF);
   FastLED.delay(1000);
-  Serial.println("done");
+  Serial.println(F("done"));
   fill_solid(leds, NUM_LEDS, 0x000000);
   FastLED.delay(1000);
-  Serial.println("clear");
+  Serial.println(F("clear"));
   */
 }
 
@@ -183,21 +193,21 @@ void checkSerial() {
     return;
   }
   if (!Serial.find("!")) {
-    Serial.println("no !");
+    Serial.println(F("no !"));
     return;
   }
   //Serial.println("found !");
   byte len;
   if (!Serial.readBytes(&len, 1)) {
-    Serial.println("no len");
+    Serial.println(F("no len"));
   }
-  //Serial.print("len=");
+  //Serial.print(F("len="));
   //Serial.println(len);
   if (!len) {
     // Special case: no length means primary is asking a question.
     byte question;
     if (!Serial.readBytes(&question, 1)) {
-      Serial.println("no question");
+      Serial.println(F("no question"));
     } else {
       if (question == 'D') {
         // Send dimensions.
@@ -208,10 +218,10 @@ void checkSerial() {
     return;
   }
 
-  byte previousMode = settings.mode;
-  byte previousHue = settings.hue;
+  SavedSettings previous = settings;
   if (!Serial.readBytes((byte*)&settings, min(sizeof(settings), len))) {
-    Serial.println("failed to read len bytes");
+    Serial.println(F("failed to read len bytes"));
+    settings = previous;
     return;
   }
   if (settings.mode == 'P') {
@@ -219,24 +229,23 @@ void checkSerial() {
     settings.hue = min(settings.hue, MAX_FRAMES);
     if (settings.hue) {
       if (!Serial.readBytes(ledFrames, settings.hue * NUM_LEDS)) {
-        Serial.print("failed to read ");
+        Serial.print(F("failed to read "));
         Serial.print(settings.hue);
-        Serial.println(" image frames");
+        Serial.println(F(" image frames"));
+        settings = previous;
       }
-    } else if (previousMode == 'P') {
+    } else if (previous.mode == 'P') {
       // Special case: frame count of 0 means no frames sent.
       // The mode must have already been 'P' for this to work.
-      settings.hue = previousHue;
+      settings.hue = previous.hue;
     } else {
       Serial.println("Can't modify frame timing without image frames first");
-      // This is an error case; restore as much as we had before as possible.
-      settings.mode = previousMode;
-      settings.hue = previousHue;
+      settings = previous;
     }
   }
 
   /*Serial.print(len);
-  Serial.print(" -> ");*/
+  Serial.print(F(" -> "));*/
   // We have new settings! Apply them.
   restoreFromSettings();
   // Plan to save this if we don't get any more data
@@ -251,12 +260,12 @@ void checkSave() {
     // Uses update() so only rewrites if necessary
     EEPROM.put(eepromStart, settings);
     saveTarget = 0;
-    //Serial.println("SAVED!");
+    //Serial.println(F("SAVED!"));
   }
 }
 
 void restoreFromSettings() {
-  /*Serial.print("settings: ");
+  /*Serial.print(F("settings: "));
   Serial.print(settings.brightness);
   Serial.print(',');
   Serial.print(settings.mode);
@@ -284,7 +293,7 @@ void restoreFromSettings() {
   } else if (settings.mode == 'P') {
     runPixels(true);
   } else {
-    Serial.print("Unknown mode: ");
+    Serial.print(F("Unknown mode: "));
     Serial.println(settings.mode);
   }
 }
