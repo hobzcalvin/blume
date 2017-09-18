@@ -6,7 +6,7 @@
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, user-scalable=no,
 		shrink-to-fit=no, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src https://codepush.azurewebsites.net 'self' data: gap: 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src *" />
+  <meta http-equiv="Content-Security-Policy" content="default-src https://codepush.azurewebsites.net 'self' data: gap: 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src *; img-src *;" />
 
 	<title>Blume</title>
 
@@ -101,6 +101,11 @@
       <label class="img-select" id="img_select_none">
         <input type="radio" name="img_select" value="" checked="checked" />
         <span id="img_select_none_desc">None</span>
+        <br/>
+      </label>
+      <label class="img-select" id="img_select_url">
+        <input type="radio" name="img_select" value="url"/>
+        URL: <input type="text" id="img_url"/>
         <br/>
       </label>
     </div>

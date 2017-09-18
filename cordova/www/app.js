@@ -63,7 +63,7 @@ sendImage = function(file) {
   }
 
   var img = new Image();
-  img.src = app.PAINT_DIR + file;
+  img.src = file;
   var canvas = document.getElementById('canvas');
   var ctx = canvas.getContext('2d');
   img.onload = function() {
@@ -185,15 +185,27 @@ function initImages(files) {
     clone.find('#img_select_none_desc').remove();
     clone.find('input').attr('value', file).removeAttr('checked')
       .after('<img src="' + app.PAINT_DIR + file + '"/>');
-    clone.appendTo('#img_select_choices');
+    none.after(clone);
   }
   $('input[type=radio][name=img_select]').change(function() {
     if (this.value) {
-      sendImage(this.value);
+      if (this.value === 'url') {
+        var val = $('#img_url').val();
+        if (val) {
+          sendImage(val);
+        }
+      } else {
+        sendImage(app.PAINT_DIR + this.value);
+      }
       $('#img_width').show();
     } else {
       sendColor();
       $('#img_width').hide();
+    }
+  });
+  $('#img_url').change(function() {
+    if (this.value) {
+      sendImage(this.value);
     }
   });
 }
