@@ -207,7 +207,9 @@ void checkSerial() {
     }
     return;
   }
-  
+
+  byte previousMode = settings.mode;
+  byte previousHue = settings.hue;
   if (!Serial.readBytes((byte*)&settings, min(sizeof(settings), len))) {
     Serial.println("failed to read len bytes");
     return;
@@ -215,10 +217,21 @@ void checkSerial() {
   if (settings.mode == 'P') {
     // hue means number of frames in this case
     settings.hue = min(settings.hue, MAX_FRAMES);
-    if (!Serial.readBytes(ledFrames, settings.hue * NUM_LEDS)) {
-      Serial.print("failed to read ");
-      Serial.print(settings.hue);
-      Serial.println(" image frames");
+    if (settings.hue) {
+      if (!Serial.readBytes(ledFrames, settings.hue * NUM_LEDS)) {
+        Serial.print("failed to read ");
+        Serial.print(settings.hue);
+        Serial.println(" image frames");
+      }
+    } else if (previousMode == 'P') {
+      // Special case: frame count of 0 means no frames sent.
+      // The mode must have already been 'P' for this to work.
+      settings.hue = previousHue;
+    } else {
+      Serial.println("Can't modify frame timing without image frames first");
+      // This is an error case; restore as much as we had before as possible.
+      settings.mode = previousMode;
+      settings.hue = previousHue;
     }
   }
 
@@ -365,11 +378,11 @@ void runMovement(bool initialize) {
 
 void runPixels(bool initialize) {
   static byte frame;
-  static long target_ms;
+  static long target_us;
   if (initialize) {
     frame = 0;
   }
-  if (initialize || millis() >= target_ms) {
+  if (initialize || micros() >= target_us) {
     for (byte i = 0; i < NUM_LEDS; i++) {
       byte color = ledFrames[frame * NUM_LEDS + i];
       leds[i] = CRGB(
@@ -379,7 +392,7 @@ void runPixels(bool initialize) {
       );
     }
     frame = (frame + 1) % settings.hue;
-    target_ms = millis() + long(settings.saturation) * 4;
+    target_us = micros() + long(settings.saturation) * 100;
   }
 }
 

@@ -49,6 +49,14 @@
   			 border: solid 1px;
   			 background-color: #ffffff;
 		}
+
+    #img_select_choices img {
+      max-height: 50px;
+    }
+
+    .img-select {
+      height: 50px;
+    }
 	</style>
 
 </head>
@@ -65,6 +73,7 @@
 
 	<div id="controlView" style="display:none">
 
+    <h2>Colors</h2>
     <input type="text" id="picker"/>
 
     <br/>
@@ -82,7 +91,20 @@
       <div class="movement-slider" id="movement_size"></div>
     </label>
     <br/>
-    <label class="ctl-movement"><input type="checkbox" id="movement_vertical">Vertical</label>
+    <label class="ctl-movement"><input type="checkbox" id="movement_vertical" checked="checked">Vertical</label>
+    <h2>Image</h2>
+    <label id="img_width" style="display:none">
+      Width
+      <div id="img_width_slider"></div>
+    </label>
+    <div id="img_select_choices">
+      <label class="img-select" id="img_select_none">
+        <input type="radio" name="img_select" value="" checked="checked" />
+        <span id="img_select_none_desc">None</span>
+        <br/>
+      </label>
+    </div>
+
     <canvas id="canvas" style="display:none">
 
 	</div>

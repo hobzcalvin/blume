@@ -13,12 +13,14 @@ var app = {};
 
 app.DFRBLU_SERVICE_UUID = '0000dfb0-0000-1000-8000-00805f9b34fb';
 app.DFRBLU_CHAR_RXTX_UUID = '0000dfb1-0000-1000-8000-00805f9b34fb';
+app.PAINT_DIR = 'img/paint/'
 
 var pendingSends = 0;
 var sendOneMore = false;
 
 var speedSlider = document.getElementById('movement_speed');
 var sizeSlider = document.getElementById('movement_size');
+var imgWidthSlider = document.getElementById('img_width_slider');
 
 function sendColor() {
   if (!app.initialized) {
@@ -36,13 +38,6 @@ function sendColor() {
   var rainbows = $('#rainbows').is(':checked');
   var speed = parseInt(speedSlider.noUiSlider.get());
   var size = parseInt(sizeSlider.noUiSlider.get());
-  /*
-  if (!hsv.h) {
-    console.log("sending...");
-    sendImage(255);//hsv.v);
-    return;
-  }
-  */
   if ($('#movement').is(':checked')) {
     app.sendCommand(null, hsv.v, 'M', hsv.h, hsv.s,
       speed + (
@@ -54,9 +49,21 @@ function sendColor() {
   }
 };
 
-sendImage = function(brightness) {
+sendImage = function(file) {
+  if (pendingSends) {
+    // Don't send another one here; it's expensive. Just ignore.
+    return;
+  }
+  var brightness = Math.round($("#picker").spectrum("get").toHsv().v * 255.0);
+  var frameTime = parseInt(imgWidthSlider.noUiSlider.get());
+  if (!file) {
+    // No file specified: just tell poi new brightness/frame-time
+    app.sendCommand(null, brightness, 'P', 0, frameTime);
+    return;
+  }
+
   var img = new Image();
-  img.src = 'img/paint/mario.png';
+  img.src = app.PAINT_DIR + file;
   var canvas = document.getElementById('canvas');
   var ctx = canvas.getContext('2d');
   img.onload = function() {
@@ -72,6 +79,8 @@ sendImage = function(brightness) {
       var width = Math.min(
         dev.maxFrames,
         Math.round(img.naturalWidth * dev.height / img.naturalHeight));
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, width, dev.height);
       // TODO: Needed?
       img.style.display = 'none';
@@ -86,7 +95,7 @@ sendImage = function(brightness) {
             (Math.floor(data[idx + 2] / 64) << 0));
         }
       }
-      app.sendCommand(dev, brightness, 'P', width, 0);
+      app.sendCommand(dev, brightness, 'P', width, frameTime);
       app.sendData(dev, arr);
     }
   };
@@ -129,9 +138,65 @@ app.initialize = function() {
     sendColor();
   });
 
+  if (!!window.cordova) {
+    window.resolveLocalFileSystemURL(
+      cordova.file.applicationDirectory + 'www/' + app.PAINT_DIR,
+      function (fileSystem) {
+        var reader = fileSystem.createReader();
+        reader.readEntries(
+          function (entries) {
+            var images = [];
+            for (var i in entries) {
+              if (entries[i].isFile && !entries[i].isDirectory) {
+                images.push(entries[i].name);
+              }
+            }
+            initImages(images);
+          },
+          function (err) {
+            console.log(err);
+          }
+        );
+      }, function (err) {
+        console.log(err);
+      }
+    );
+  } else {
+    // Not cordova? Rely on a static list, maybe up to date.
+    initImages(['mario.png', 'fire.jpg', 'pacman.png']);
+  }
+  noUiSlider.create(imgWidthSlider, {
+    start: 0,
+    range: { min: 0, max: 255},
+  });
+  imgWidthSlider.noUiSlider.on('update', function() {
+    sendImage();
+  });
+
   app.initialized = true;
   app.startScan();
 };
+
+function initImages(files) {
+  var none = $('#img_select_none');
+  for (var i in files) {
+    var file = files[i];
+    var clone = none.clone().attr('id', 'img_select_' + file);
+    clone.find('#img_select_none_desc').remove();
+    clone.find('input').attr('value', file).removeAttr('checked')
+      .after('<img src="' + app.PAINT_DIR + file + '"/>');
+    clone.appendTo('#img_select_choices');
+  }
+  $('input[type=radio][name=img_select]').change(function() {
+    if (this.value) {
+      sendImage(this.value);
+      $('#img_width').show();
+    } else {
+      sendColor();
+      $('#img_width').hide();
+    }
+  });
+}
 
 function listDevices() {
   $('#scanResultView').empty();
@@ -165,6 +230,9 @@ function listDevices() {
 };
 
 app.startScan = function() {
+  if (!window.cordova) {
+    return;
+  }
   console.log('Scanning started...');
 
   app.devices = {};
@@ -313,7 +381,7 @@ app.sendData = function(devices, data) {
 
   for (var i in devices) {
     var dev = devices[i];
-    if (!dev.isConnected()) {
+    if (!dev.isConnected() || dev.fake) {
       continue;
     }
     pendingSends++;
@@ -363,12 +431,22 @@ app.receivedData = function(data) {
   }
 };
 
-// DEBUG MODE: Uncomment this stuff to run the app in the browser.
-/*
-$(function() {
-  $('#controlView').show();
-  $('#canvas').show();
-  // This will throw errors without evothings libraries defined.
-  app.initialize();
-});
-*/
+// DEBUG MODE: Hackily runs the app in the browser.
+if (!window.cordova) {
+  $(function() {
+    $('#controlView').show();
+    $('#canvas').show();
+    app.initialize();
+    // Create a fake connected device
+    app.devices = {
+      abcdefghi: {
+        fake: true,
+        isConnected: function() { return true; },
+        width: 1,
+        height: 18,
+        numLeds: 18,
+        maxFrames: 64
+      }
+    };
+  });
+}
