@@ -327,7 +327,7 @@ void runMovement(bool initialize) {
     rainbow = settings.c1 > 100;
     horizontal = settings.c2 > 100;
     dimension = horizontal ? width : height;
-    speed = float(int(rainbow ? settings.c1 - 101 : settings.c1) - 50) / 1000.0;
+    speed = float(int(rainbow ? settings.c1 - 101 : settings.c1) - 50) * dimension / 8000.0;
     // First convert size to [0,100]
     size = horizontal ? settings.c2 - 101 : settings.c2;
     if (rainbow) {
