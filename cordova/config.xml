@@ -2,10 +2,10 @@
 <widget id="org.selfobserved.blume" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
     <name>Blume</name>
     <description>
-        A sample Apache Cordova application that responds to the deviceready event.
+      An app to control LEDs based on the Blume Bluetooth platform.
     </description>
-    <author email="dev@cordova.apache.org" href="http://cordova.io">
-        Apache Cordova Team
+    <author email="grant.patterson@gmail.com" href="http://selfobserved.org/work/">
+        Grant Patterson
     </author>
     <content src="index.html" />
     <access origin="*" />
