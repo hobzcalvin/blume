@@ -167,7 +167,7 @@ app.initialize = function() {
     );
   } else {
     // Not cordova? Rely on a static list, maybe up to date.
-    initImages(['mario.png', 'fire.jpg', 'pacman.png']);
+    initImages(['mario.png', 'fire.jpg', 'pacman.png', 'space_invaders.png']);
   }
   noUiSlider.create(imgWidthSlider, {
     start: 0,

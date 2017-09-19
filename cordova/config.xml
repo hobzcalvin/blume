@@ -56,6 +56,7 @@
         <splash height="1024" src="res/screens/ios/screen-ipad-portrait.png" width="768" />
         <splash height="2048" src="res/screens/ios/screen-ipad-portrait-2x.png" width="1536" />
     </platform>
+    <engine name="android" spec="^6.2.3" />
     <engine name="ios" spec="^4.4.0" />
     <plugin name="cordova-plugin-ble" spec="git+https://github.com/evothings/cordova-ble.git#2.0.1" />
     <plugin name="cordova-plugin-code-push" spec="^1.9.5-beta" />

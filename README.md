@@ -5,7 +5,7 @@ Blume is a platform for LED projects. It combines [Bluno Beetle by DFRobot](http
 - Install [npm](https://www.npmjs.com/) if you don't have it
 - `npm install -g cordova`
 - From inside this repository: `cd cordova/www/`
-- `cordova platform add ios` (or `android`, etc.)
+- `cordova prepare`
 - `cordova run ios` (or `android`, etc.)
 
 ## Running the Arduino Code
@@ -20,6 +20,6 @@ Blume is a platform for LED projects. It combines [Bluno Beetle by DFRobot](http
 - Upload code to Beetle
 
 ## TODO
-- Test on Android, other platforms
+- Release on app stores
 - Develop for other bluetooth-enabled Arduinos
 - Evaluate/refactor [easyble](https://evothings.com/doc/lib-doc/evothings.easyble.html) and other [Evothings](http://evothings.com/) remnants (a bit one-size-fits-all)

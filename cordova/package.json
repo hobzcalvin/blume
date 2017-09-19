@@ -11,6 +11,7 @@
     "license": "Apache-2.0",
     "dependencies": {
         "code-push": "^2.0.1-beta",
+        "cordova-android": "^6.2.3",
         "cordova-ios": "^4.4.0",
         "cordova-plugin-ble": "git+https://github.com/evothings/cordova-ble.git#2.0.1",
         "cordova-plugin-code-push": "^1.9.5-beta",
@@ -29,6 +30,7 @@
             "cordova-plugin-whitelist": {}
         },
         "platforms": [
+            "android",
             "ios"
         ]
     }
