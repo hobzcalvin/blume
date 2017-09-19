@@ -3,55 +3,55 @@
 
 <head>
 
-	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width, user-scalable=no,
-		shrink-to-fit=no, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, user-scalable=no,
+    shrink-to-fit=no, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0" />
   <meta http-equiv="Content-Security-Policy" content="default-src https://codepush.azurewebsites.net 'self' data: gap: 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src *; img-src * data:;" />
 
-	<title>Blume</title>
+  <title>Blume</title>
 
-	<style>
+  <style>
 
     body {
       font-family: "Verdana";
     }
 
-		.center {
-			display: block;
-			margin-left: auto;
-			margin-right: auto;
-		}
+    .center {
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+    }
 
-		p.deviceAddress {
-			margin: 5px 0px 10px 10px;
-			font-size: xx-small;
-			font-weight:bold;
-		}
+    p.deviceAddress {
+      margin: 5px 0px 10px 10px;
+      font-size: xx-small;
+      font-weight:bold;
+    }
 
-		p.deviceName {
-			margin: 5px 0px 0px 10px;
-			font-weight: bold
-		}
+    p.deviceName {
+      margin: 5px 0px 0px 10px;
+      font-weight: bold
+    }
 
-		div.deviceContainer {
-			border-radius: 10px;
-			border: 1px solid;
-			border-color: #CCCCCC;
-			overflow: hidden;
-			margin: 10px 0px;
-		}
+    div.deviceContainer {
+      border-radius: 10px;
+      border: 1px solid;
+      border-color: #CCCCCC;
+      overflow: hidden;
+      margin: 10px 0px;
+    }
 
-		.connected {
-  		background-color: #ff0000;
-		}
+    .connected {
+      background-color: #ff0000;
+    }
 
-		#loadingIndicator {
-			width:20%;
-			display: table-cell;
-  		vertical-align: middle;
-  		border: solid 1px;
-  	  background-color: #ffffff;
-		}
+    #loadingIndicator {
+      width:20%;
+      display: table-cell;
+      vertical-align: middle;
+      border: solid 1px;
+      background-color: #ffffff;
+    }
 
     .img-select {
       text-align: center;
@@ -76,21 +76,21 @@
     }
 
 
-	</style>
+  </style>
 
 </head>
 
 <body ontouchstart="">
 
-	<h1>Blume</h1>
+  <h1>Blume</h1>
 
-	<div id="scanResultView" style="display:none">
-		<div id="loadingIndicator" style="display:none">
-			<img src="img/loader.gif">
-		</div>
-	</div>
+  <div id="scanResultView" style="display:none">
+    <div id="loadingIndicator" style="display:none">
+      <img src="img/loader.gif">
+    </div>
+  </div>
 
-	<div id="controlView" style="display:none">
+  <div id="controlView" style="display:none">
 
     <h2>Colors</h2>
     <input type="text" id="picker"/>
@@ -127,20 +127,20 @@
 
     <canvas id="canvas" style="display:none">
 
-	</div>
+  </div>
 
   <a onclick="window.location.reload()">&#128260;</a>
 
-	<script src="cordova.js"></script>
-	<script src="libs/evothings/evothings.js"></script>
-	<script src="libs/evothings/ui/ui.js"></script>
-	<script src="libs/evothings/easyble/easyble.js"></script>
-	<script src="libs/jquery/jquery.js"></script>
-	<script src="libs/spectrum/spectrum.js"></script>
-	<script src="libs/nouislider/nouislider.js"></script>
+  <script src="cordova.js"></script>
+  <script src="libs/evothings/evothings.js"></script>
+  <script src="libs/evothings/ui/ui.js"></script>
+  <script src="libs/evothings/easyble/easyble.js"></script>
+  <script src="libs/jquery/jquery.js"></script>
+  <script src="libs/spectrum/spectrum.js"></script>
+  <script src="libs/nouislider/nouislider.js"></script>
   <link rel='stylesheet' href='libs/spectrum/spectrum.css' />
   <link rel='stylesheet' href='libs/nouislider/nouislider.css' />
-	<script src="app.js"></script>
+  <script src="app.js"></script>
 
 </body>
 
