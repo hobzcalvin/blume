@@ -6,12 +6,15 @@
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, user-scalable=no,
 		shrink-to-fit=no, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src https://codepush.azurewebsites.net 'self' data: gap: 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src *; img-src *;" />
+  <meta http-equiv="Content-Security-Policy" content="default-src https://codepush.azurewebsites.net 'self' data: gap: 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src *; img-src * data:;" />
 
 	<title>Blume</title>
 
 	<style>
-		@import 'ui/css/evothings-app.css';
+
+    body {
+      font-family: "Verdana";
+    }
 
 		.center {
 			display: block;
@@ -43,20 +46,36 @@
 		}
 
 		#loadingIndicator {
-			 width:20%;
-			 display: table-cell;
-  			 vertical-align: middle;
-  			 border: solid 1px;
-  			 background-color: #ffffff;
+			width:20%;
+			display: table-cell;
+  		vertical-align: middle;
+  		border: solid 1px;
+  	  background-color: #ffffff;
 		}
 
-    #img_select_choices img {
-      max-height: 50px;
+    .img-select {
+      text-align: center;
+      padding: 2px;
+      border: 2px solid transparent;
     }
 
-    .img-select {
+    .img-select div,img {
+      vertical-align: middle;
       height: 50px;
+      line-height: 50px;
     }
+
+    .img-select-selected {
+      border:2px solid #f00;
+    }
+
+    .noUi-horizontal {
+      left: 5%;
+      width: 90%;
+      margin: 10px 0px;
+    }
+
+
 	</style>
 
 </head>
@@ -93,21 +112,17 @@
     <br/>
     <label class="ctl-movement"><input type="checkbox" id="movement_vertical" checked="checked">Vertical</label>
     <h2>Image</h2>
-    <label id="img_width" style="display:none">
+    <label id="img_width">
       Width
       <div id="img_width_slider"></div>
     </label>
-    <div id="img_select_choices">
-      <label class="img-select" id="img_select_none">
-        <input type="radio" name="img_select" value="" checked="checked" />
-        <span id="img_select_none_desc">None</span>
-        <br/>
-      </label>
-      <label class="img-select" id="img_select_url">
-        <input type="radio" name="img_select" value="url"/>
-        URL: <input type="text" id="img_url"/>
-        <br/>
-      </label>
+    <div>
+      <div id="img_select_none" class="img-select img-select-selected">
+        <div>None</div>
+      </div>
+      <div id="img_select_url" class="img-select" imageid="url">
+        <div>URL: <input type="text" id="img_url"/></div>
+      </div>
     </div>
 
     <canvas id="canvas" style="display:none">

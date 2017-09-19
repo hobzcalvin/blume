@@ -3,7 +3,11 @@ if (window.hyper && window.hyper.log) { console.log = hyper.log; };
 
 document.addEventListener('deviceready', function() {
   window.codePush.sync();
-  evothings.scriptsLoaded(app.initialize);
+  if (window.device.platform === 'iOS' && window.device.model === 'x86_64') {
+    debugMode();
+  } else {
+    evothings.scriptsLoaded(app.initialize);
+  }
 });
 document.addEventListener("resume", function() {
   window.codePush.sync();
@@ -181,31 +185,35 @@ function initImages(files) {
   var none = $('#img_select_none');
   for (var i in files) {
     var file = files[i];
-    var clone = none.clone().attr('id', 'img_select_' + file);
-    clone.find('#img_select_none_desc').remove();
-    clone.find('input').attr('value', file).removeAttr('checked')
-      .after('<img src="' + app.PAINT_DIR + file + '"/>');
+    var clone = none.clone().attr('id', 'img_select_' + file)
+      .attr('imageid', file).removeClass('img-select-selected');
+    clone.html('<img src="' + app.PAINT_DIR + file + '"/>');
     none.after(clone);
   }
-  $('input[type=radio][name=img_select]').change(function() {
-    if (this.value) {
-      if (this.value === 'url') {
+  $('.img-select').click(function() {
+    if ($(this).hasClass('img-select-selected')) {
+      return;
+    }
+    $('.img-select').removeClass('img-select-selected');
+    $(this).addClass('img-select-selected');
+    var img = $(this).attr('imageid');
+    if (img) {
+      if (img === 'url') {
+        $('#img_url').focus();
         var val = $('#img_url').val();
         if (val) {
           sendImage(val);
         }
       } else {
-        sendImage(app.PAINT_DIR + this.value);
+        sendImage(app.PAINT_DIR + img);
       }
-      $('#img_width').show();
     } else {
       sendColor();
-      $('#img_width').hide();
     }
   });
   $('#img_url').change(function() {
-    if (this.value) {
-      sendImage(this.value);
+    if ($(this).val()) {
+      $('#img_select_url').removeClass('img-select-selected').click();
     }
   });
 }
@@ -443,22 +451,29 @@ app.receivedData = function(data) {
   }
 };
 
-// DEBUG MODE: Hackily runs the app in the browser.
+// DEBUG MODE: Hackily runs the app in the browser, simulator, etc.
+function debugMode() {
+  $('#controlView').show();
+  $('#canvas').show();
+  app.initialize();
+  // Create a fake connected device
+  app.devices = {
+    abcdefghi: {
+      fake: true,
+      isConnected: function() { return true; },
+      width: 1,
+      height: 18,
+      numLeds: 18,
+      maxFrames: 64,
+      name: 'Fake Blume',
+      address: 'abcdefghi'
+    }
+  };
+  listDevices();
+}
+
 if (!window.cordova) {
   $(function() {
-    $('#controlView').show();
-    $('#canvas').show();
-    app.initialize();
-    // Create a fake connected device
-    app.devices = {
-      abcdefghi: {
-        fake: true,
-        isConnected: function() { return true; },
-        width: 1,
-        height: 18,
-        numLeds: 18,
-        maxFrames: 64
-      }
-    };
+    debugMode();
   });
 }
