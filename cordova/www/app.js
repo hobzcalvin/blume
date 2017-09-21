@@ -326,6 +326,7 @@ app.connectTo = function(address) {
       // Write debug information to console.
       console.log('Error reading services: ' + errorCode);
       dev.connectPending = false;
+      listDevices();
     }
 
     // Connect to the appropriate BLE service
@@ -335,7 +336,14 @@ app.connectTo = function(address) {
   function onConnectFailure(errorCode) {
     // Write debug information to console
     console.log('Error ' + errorCode);
-    dev.connectPending = false;
+    if (errorCode === 133) {
+      // On Android this just means we should retry!
+      console.log("Attempting reconnect to " + dev.name);
+      app.connectTo(address);
+    } else {
+      dev.connectPending = false;
+      listDevices();
+    }
   }
 
   // Connect to our device
@@ -352,7 +360,8 @@ app.disconnectFrom = function(address) {
   listDevices();
 };
 
-app.sendCommand = function(devices, brightness, mode, ...data) {
+app.sendCommand = function(devices, brightness, mode) {
+  var data = Array.prototype.slice.call(arguments, 3);
   // Commands always have brightness
   var cmd = [brightness];
   // Add mode if it was passed in
@@ -370,9 +379,9 @@ app.sendAsk = function(devices, question) {
 
 function toHexString(byteArray) {
   var s = '0x';
-  byteArray.forEach(function(byte) {
-    s += ('0' + (byte & 0xFF).toString(16)).slice(-2);
-  });
+  for (var i in byteArray) {
+    s += ('0' + (byteArray[i] & 0xFF).toString(16)).slice(-2);
+  };
   return s;
 }
 
@@ -429,7 +438,7 @@ app.sendData = function(devices, data) {
 };
 
 function buf2hex(buffer) { // buffer is an ArrayBuffer
-  return Array.prototype.map.call(new Uint8Array(buffer), x => ('00' + x.toString(16)).slice(-2)).join('');
+  return Array.prototype.map.call(new Uint8Array(buffer), function(x) { return ('00' + x.toString(16)).slice(-2); }).join('');
 }
 
 app.receivedData = function(data) {
@@ -440,7 +449,7 @@ app.receivedData = function(data) {
     console.log("EEP!");
     sendColor();
   } else if (data[0] === 0x21) {
-    console.log("question?! " + data.join(','), this);
+    console.log("question?!", this);
     if (data[1] === 0x44) {
       // Got dimensions result. "this" is the sending device.
       this.width = data[2];
