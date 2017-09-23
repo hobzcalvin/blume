@@ -13,7 +13,7 @@
         "code-push": "^2.0.1-beta",
         "cordova-android": "^6.2.3",
         "cordova-ios": "^4.4.0",
-        "cordova-plugin-ble": "^2.0.1",
+        "cordova-plugin-ble": "git+https://github.com/hobzcalvin/cordova-ble.git",
         "cordova-plugin-code-push": "^1.9.5-beta",
         "cordova-plugin-compat": "^1.1.0",
         "cordova-plugin-device": "^1.1.6",
@@ -25,9 +25,11 @@
     },
     "cordova": {
         "plugins": {
-            "cordova-plugin-ble": {},
             "cordova-plugin-code-push": {},
-            "cordova-plugin-whitelist": {}
+            "cordova-plugin-whitelist": {},
+            "cordova-plugin-ble": {
+                "BLUETOOTH_USAGE_DESCRIPTION": "This app would like to use Bluetooth to connect to nearby devices."
+            }
         },
         "platforms": [
             "android",
