@@ -63,4 +63,5 @@
     <plugin name="cordova-plugin-ble" spec="https://github.com/hobzcalvin/cordova-ble">
         <variable name="BLUETOOTH_USAGE_DESCRIPTION" value="This app would like to use Bluetooth to connect to nearby devices." />
     </plugin>
+    <plugin name="cordova-plugin-browsersync" spec="^1.1.0" />
 </widget>
