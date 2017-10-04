@@ -1,20 +1,29 @@
 // Route all console logs to Evothings studio log
 if (window.hyper && window.hyper.log) { console.log = hyper.log; };
 
-document.addEventListener('deviceready', function() {
-  window.codePush.sync();
-  if (window.device.platform === 'iOS' && window.device.model === 'x86_64') {
-    debugMode();
-  } else {
+if (window.cordova) {
+  // We're in the Cordova app; initialize when the device is ready.
+  // Do CodePush sync when the device is ready and every time we're
+  // foregrounded.
+  document.addEventListener('deviceready', function() {
+    window.codePush.sync();
     evothings.scriptsLoaded(app.initialize);
-  }
-});
-document.addEventListener("resume", function() {
-  window.codePush.sync();
-});
+  });
+  document.addEventListener("resume", function() {
+    window.codePush.sync();
+  });
+} else {
+  // No Cordova. Wait until jQuery's available (actually, we just need to wait
+  // until app.initialize() is defined below, but this gives us a reasonable
+  // delay), then initialize.
+  $(function() {
+    app.initialize();
+  });
+}
 
-var app = {};
-
+// Define globally for easy console debugging
+app = {};
+app.devices = {};
 app.DFRBLU_SERVICE_UUID = '0000dfb0-0000-1000-8000-00805f9b34fb';
 app.DFRBLU_CHAR_RXTX_UUID = '0000dfb1-0000-1000-8000-00805f9b34fb';
 app.PAINT_DIR = 'img/paint/'
@@ -179,6 +188,27 @@ app.initialize = function() {
 
   app.initialized = true;
   app.startScan();
+  listDevices();
+
+  setTimeout(function() {
+    if (Object.keys(app.devices).length === 0) {
+      // We have no devices after a while. Offer the fake device.
+      var fake = {
+        fake: true,
+        connected: false,
+        isConnected: function() { return this.connected; },
+        close: function() { this.connected = false; },
+        width: 1,
+        height: 18,
+        numLeds: 18,
+        maxFrames: 64,
+        name: 'Fake Blume',
+        address: 'abcdefghi'
+      };
+      app.devices[fake.address] = fake;
+      listDevices();
+    }
+  }, 3000);
 };
 
 function initImages(files) {
@@ -220,12 +250,13 @@ function initImages(files) {
 
 function listDevices() {
   $('#scanResultView').empty();
-  if (app.devices.length === 0) {
+  if (Object.keys(app.devices).length === 0) {
     $('#loadingIndicator').show();
     $('#controlView').hide();
     return;
   } else {
     $('#loadingIndicator').hide();
+    $('#scanResultView').show();
   }
   var anyConnected = false;
   for (var i in app.devices) {
@@ -239,7 +270,7 @@ function listDevices() {
       dev.address + '\')">' +
       '<p class="deviceName">' + dev.name;
     if (dev.connectPending) {
-      htmlString += ' Connecting...';
+      htmlString += ' <i>Connecting...</i>';
     }
     htmlString += '</p>' +
       '<p class="deviceAddress">' + dev.address + '</p>' +
@@ -254,8 +285,6 @@ app.startScan = function() {
     return;
   }
   console.log('Scanning started...');
-
-  app.devices = {};
 
   var htmlString =
     '<img src="img/loader_small.gif" ' +
@@ -301,6 +330,16 @@ app.toggleConnect = function(address) {
 
 app.connectTo = function(address) {
   var dev = app.devices[address];
+  if (dev.fake) {
+    dev.connectPending = true;
+    listDevices();
+    setTimeout(function() {
+      dev.connectPending = false;
+      dev.connected = true;
+      listDevices();
+    }, 1000);
+    return;
+  }
 
   function onConnectSuccess(dev) {
     function onServiceSuccess(dev) {
@@ -460,29 +499,3 @@ app.receivedData = function(data) {
   }
 };
 
-// DEBUG MODE: Hackily runs the app in the browser, simulator, etc.
-function debugMode() {
-  $('#controlView').show();
-  $('#canvas').show();
-  app.initialize();
-  // Create a fake connected device
-  app.devices = {
-    abcdefghi: {
-      fake: true,
-      isConnected: function() { return true; },
-      width: 1,
-      height: 18,
-      numLeds: 18,
-      maxFrames: 64,
-      name: 'Fake Blume',
-      address: 'abcdefghi'
-    }
-  };
-  listDevices();
-}
-
-if (!window.cordova) {
-  $(function() {
-    debugMode();
-  });
-}
