@@ -1,0 +1,7 @@
+.DS_Store
+*.sw?
+node_modules
+cordova/platforms/
+cordova/plugins/
+cordova/hooks/
+
