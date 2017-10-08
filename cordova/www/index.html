@@ -85,55 +85,76 @@
 </head>
 
 <body ontouchstart="">
+  <br />
+  <div class="container-fluid">
+    <h1>Blume</h1>
 
-  <h1>Blume</h1>
-
-  <div id="loadingIndicator" style="display:none">
-    <img src="img/loader.gif">
-  </div>
-  <div id="scanResultView" style="display:none">
-  </div>
-
-  <div id="controlView" style="display:none">
-
-    <h2>Colors</h2>
-    <input type="text" id="picker"/>
-
-    <br/>
-    <label><input type="checkbox" id="rainbows">Rainbows</label>
-    <br/>
-    <label><input type="checkbox" id="movement">Movement</label>
-    <br/>
-    <label class="ctl-movement">
-      Speed
-      <div class="movement-slider" id="movement_speed"></div>
-    </label>
-    <br/>
-    <label class="ctl-movement">
-      Size
-      <div class="movement-slider" id="movement_size"></div>
-    </label>
-    <br/>
-    <label class="ctl-movement"><input type="checkbox" id="movement_vertical" checked="checked">Vertical</label>
-    <h2>Image</h2>
-    <label id="img_width">
-      Width
-      <div id="img_width_slider"></div>
-    </label>
-    <div>
-      <div id="img_select_none" class="img-select img-select-selected">
-        <div>None</div>
-      </div>
-      <div id="img_select_url" class="img-select" imageid="url">
-        <div>URL: <input type="text" id="img_url"/></div>
-      </div>
+    <div id="loadingIndicator" style="display:none">
+      <img src="img/loader.gif">
+    </div>
+    <div id="scanResultView" style="display:none">
     </div>
 
-    <canvas id="canvas" style="display:none">
+    <div id="controlView" style="display:none">
+      <div id="accordion" role="tablist">
+        <div class="card">
+          <div class="card-header collapsed" role="tab" id="headingOne" data-toggle="collapse" data-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+            <h5 class="mb-0">
+                Colors
+            </h5>
+          </div>
+          <div id="collapseOne" class="collapse show" role="tabpanel" aria-labelledby="headingOne" data-parent="#accordion">
+            <div class="card-body">
+              <input type="text" id="picker"/>
 
+              <br/>
+              <label><input type="checkbox" id="rainbows">Rainbows</label>
+              <br/>
+              <label><input type="checkbox" id="movement">Movement</label>
+              <br/>
+              <div class="ctl-movement">
+                Speed
+                <div class="movement-slider" id="movement_speed"></div>
+              </div>
+              <br/>
+              <div class="ctl-movement">
+                Size
+                <div class="movement-slider" id="movement_size"></div>
+              </div>
+              <br/>
+              <label class="ctl-movement"><input type="checkbox" id="movement_vertical" checked="checked">Vertical</label>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header collapsed" role="tab" id="headingTwo" data-toggle="collapse" data-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+            <h5 class="mb-0">
+                Image
+            </h5>
+          </div>
+          <div id="collapseTwo" class="collapse" role="tabpanel" aria-labelledby="headingTwo" data-parent="#accordion">
+            <div class="card-body">
+              <div id="img_width">
+                Width
+                <div id="img_width_slider"></div>
+              </div>
+              <div>
+                <div id="img_select_none" class="img-select img-select-selected">
+                  <div>None</div>
+                </div>
+                <div id="img_select_url" class="img-select" imageid="url">
+                  <div>URL: <input type="text" id="img_url"/></div>
+                </div>
+              </div>
+
+              <canvas id="canvas" style="display:none">
+              </div>
+            </div>
+          </div>
+        </div>
+    </div>
+    <a onclick="window.location.reload()">&#128260;</a>
   </div>
-
-  <a onclick="window.location.reload()">&#128260;</a>
 
   <script src="cordova.js"></script>
   <script src="libs/evothings/evothings.js"></script>
