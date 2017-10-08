@@ -40,6 +40,8 @@ function sendColor() {
     return;
   }
   if (pendingSends) {
+    // TODO: Use some sort of sendingFinished handler that this can add
+    // a one-time function to, to send itself one more time. then it's per mode.
     sendOneMore = true;
     return;
   }
@@ -115,6 +117,17 @@ sendImage = function(file) {
 }
 
 app.initialize = function() {
+
+  $('#accordion .collapse').on('show.bs.collapse', function() {
+    if (this.id === 'collapseColor') {
+      // Switch to color mode: send the latest
+      sendColor();
+    } else if (this.id === 'collapseImage') {
+      // Switch to image mode: we won't send any image until the user selects
+      // one, so revert the selection to None.
+      $('#img_select_none').click();
+    }
+  });
 
   $('#picker').spectrum({
     color: "#FF0000",
@@ -237,8 +250,6 @@ function initImages(files) {
       } else {
         sendImage(app.PAINT_DIR + img);
       }
-    } else {
-      sendColor();
     }
   });
   $('#img_url').change(function() {
