@@ -28,11 +28,14 @@ app.DFRBLU_SERVICE_UUID = '0000dfb0-0000-1000-8000-00805f9b34fb';
 app.DFRBLU_CHAR_RXTX_UUID = '0000dfb1-0000-1000-8000-00805f9b34fb';
 app.PAINT_DIR = 'img/paint/'
 
+// Number of devices that still need to be sent the current command.
 var pendingSends = 0;
-var sendOneMore = false;
+// If truthy, this will be executed and unset when pendingSends returns to 0.
+var doPostSend = null;
 
 var speedSlider = document.getElementById('movement_speed');
 var sizeSlider = document.getElementById('movement_size');
+var imgBrightSlider = document.getElementById('img_bright_slider');
 var imgWidthSlider = document.getElementById('img_width_slider');
 
 function sendColor() {
@@ -40,9 +43,9 @@ function sendColor() {
     return;
   }
   if (pendingSends) {
-    // TODO: Use some sort of sendingFinished handler that this can add
-    // a one-time function to, to send itself one more time. then it's per mode.
-    sendOneMore = true;
+    doPostSend = function() {
+      sendColor();
+    };
     return;
   }
   var color = $("#picker").spectrum("get");
@@ -66,10 +69,13 @@ function sendColor() {
 
 sendImage = function(file) {
   if (pendingSends) {
-    // Don't send another one here; it's expensive. Just ignore.
+    // Don't send a new image, but do sent the latest brightness/width
+    doPostSend = function() {
+      sendImage();
+    };
     return;
   }
-  var brightness = Math.round($("#picker").spectrum("get").toHsv().v * 255.0);
+  var brightness = parseInt(imgBrightSlider.noUiSlider.get());
   var frameTime = parseInt(imgWidthSlider.noUiSlider.get());
   if (!file) {
     // No file specified: just tell poi new brightness/frame-time
@@ -191,9 +197,16 @@ app.initialize = function() {
     // Not cordova? Rely on a static list, maybe up to date.
     initImages(['mario.png', 'fire.jpg', 'pacman.png', 'space_invaders.png']);
   }
+  noUiSlider.create(imgBrightSlider, {
+    start: 255,
+    range: { min: 0, max: 255},
+  });
   noUiSlider.create(imgWidthSlider, {
     start: 0,
     range: { min: 0, max: 255},
+  });
+  imgBrightSlider.noUiSlider.on('update', function() {
+    sendImage();
   });
   imgWidthSlider.noUiSlider.on('update', function() {
     sendImage();
@@ -235,6 +248,9 @@ function initImages(files) {
   }
   $('.img-select').click(function() {
     if ($(this).hasClass('img-select-selected')) {
+      return;
+    }
+    if (pendingSends) {
       return;
     }
     $('.img-select').removeClass('img-select-selected');
@@ -435,6 +451,14 @@ function toHexString(byteArray) {
   return s;
 }
 
+function sendEnd() {
+  pendingSends--;
+  if (!pendingSends && doPostSend) {
+    doPostSend();
+    doPostSend = null;
+  }
+}
+
 app.sendData = function(devices, data) {
   var tosend;
   if ((typeof data) == 'string') {
@@ -469,19 +493,11 @@ app.sendData = function(devices, data) {
       tosend,
       function() {
         //console.log("SENT: " + toHexString(tosend));
-        pendingSends--;
-        if (!pendingSends && sendOneMore) {
-          sendOneMore = false;
-          sendColor();
-        }
+        sendEnd();
       },
       function(err) {
-        pendingSends--;
         console.log("ERR:", err, pendingSends);
-        if (!pendingSends && sendOneMore) {
-          sendOneMore = false;
-          sendColor();
-        }
+        sendEnd();
       }
     );
   }
