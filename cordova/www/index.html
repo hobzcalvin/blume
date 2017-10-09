@@ -98,12 +98,12 @@
     <div id="controlView" style="display:none">
       <div id="accordion" role="tablist">
         <div class="card">
-          <div class="card-header collapsed" role="tab" id="headingOne" data-toggle="collapse" data-target="#collapseColor" aria-expanded="false" aria-controls="collapseColor">
+          <div class="card-header collapsed" role="tab" id="headingColor" data-toggle="collapse" data-target="#collapseColor" aria-expanded="false" aria-controls="collapseColor">
             <h5 class="mb-0">
-                Colors
+              Colors
             </h5>
           </div>
-          <div id="collapseColor" class="collapse show" role="tabpanel" aria-labelledby="headingOne" data-parent="#accordion">
+          <div id="collapseColor" class="collapse show" role="tabpanel" aria-labelledby="headingColor" data-parent="#accordion">
             <div class="card-body">
               <input type="text" id="picker"/>
 
@@ -127,12 +127,12 @@
           </div>
         </div>
         <div class="card">
-          <div class="card-header collapsed" role="tab" id="headingTwo" data-toggle="collapse" data-target="#collapseImage" aria-expanded="false" aria-controls="collapseImage">
+          <div class="card-header collapsed" role="tab" id="headingImage" data-toggle="collapse" data-target="#collapseImage" aria-expanded="false" aria-controls="collapseImage">
             <h5 class="mb-0">
-                Image
+              Image
             </h5>
           </div>
-          <div id="collapseImage" class="collapse" role="tabpanel" aria-labelledby="headingTwo" data-parent="#accordion">
+          <div id="collapseImage" class="collapse" role="tabpanel" aria-labelledby="headingImage" data-parent="#accordion">
             <div class="card-body">
               <div id="img_bright">
                 Brightness
@@ -152,10 +152,39 @@
               </div>
 
               <canvas id="canvas" style="display:none">
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header collapsed" role="tab" id="headingBlobs" data-toggle="collapse" data-target="#collapseBlobs" aria-expanded="false" aria-controls="collapseBlobs">
+            <h5 class="mb-0">
+              Blobs
+            </h5>
+          </div>
+          <div id="collapseBlobs" class="collapse" role="tabpanel" aria-labelledby="headingBlobs" data-parent="#accordion">
+            <div class="card-body">
+              <div id="blobs_bright">
+                Brightness
+                <div id="blobs_bright_slider"></div>
+              </div>
+              <div id="blobs_speed">
+                Speed
+                <div id="blobs_speed_slider"></div>
+              </div>
+              Size
+              <div id="blobs_red_size">
+                <div id="blobs_red_size_slider" style="background:red"></div>
+              </div>
+              <div id="blobs_green_size">
+                <div id="blobs_green_size_slider" style="background:green"></div>
+              </div>
+              <div id="blobs_blue_size">
+                <div id="blobs_blue_size_slider" style="background:blue"></div>
               </div>
             </div>
           </div>
         </div>
+      </div>
     </div>
     <a onclick="window.location.reload()">&#128260;</a>
   </div>

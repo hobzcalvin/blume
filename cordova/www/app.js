@@ -37,6 +37,11 @@ var speedSlider = document.getElementById('movement_speed');
 var sizeSlider = document.getElementById('movement_size');
 var imgBrightSlider = document.getElementById('img_bright_slider');
 var imgWidthSlider = document.getElementById('img_width_slider');
+var blobsBrightSlider = document.getElementById('blobs_bright_slider');
+var blobsSpeedSlider = document.getElementById('blobs_speed_slider');
+var blobsRedSizeSlider = document.getElementById('blobs_red_size_slider');
+var blobsGreenSizeSlider = document.getElementById('blobs_green_size_slider');
+var blobsBlueSizeSlider = document.getElementById('blobs_blue_size_slider');
 
 function sendColor() {
   if (!app.initialized) {
@@ -68,6 +73,9 @@ function sendColor() {
 };
 
 sendImage = function(file) {
+  if (!app.initialized) {
+    return;
+  }
   if (pendingSends) {
     // Don't send a new image, but do sent the latest brightness/width
     doPostSend = function() {
@@ -120,7 +128,25 @@ sendImage = function(file) {
       app.sendData(dev, arr);
     }
   };
-}
+};
+
+sendBlobs = function() {
+  if (!app.initialized) {
+    return;
+  }
+  if (pendingSends) {
+    doPostSend = function() {
+      sendBlobs();
+    };
+    return;
+  }
+  var bright = parseInt(blobsBrightSlider.noUiSlider.get());
+  var speed = parseInt(blobsSpeedSlider.noUiSlider.get());
+  var rs = parseInt(blobsRedSizeSlider.noUiSlider.get());
+  var gs = parseInt(blobsGreenSizeSlider.noUiSlider.get());
+  var bs = parseInt(blobsBlueSizeSlider.noUiSlider.get());
+  app.sendCommand(null, bright, 'B', speed, rs, gs, bs);
+};
 
 app.initialize = function() {
 
@@ -132,6 +158,8 @@ app.initialize = function() {
       // Switch to image mode: we won't send any image until the user selects
       // one, so revert the selection to None.
       $('#img_select_none').click();
+    } else if (this.id === 'collapseBlobs') {
+      sendBlobs();
     }
   });
 
@@ -210,6 +238,24 @@ app.initialize = function() {
   });
   imgWidthSlider.noUiSlider.on('update', function() {
     sendImage();
+  });
+
+  noUiSlider.create(blobsBrightSlider, {
+    start: 255,
+    range: { min: 0, max: 255 },
+  });
+  blobsBrightSlider.noUiSlider.on('update', function() {
+    sendBlobs();
+  });
+  [blobsSpeedSlider, blobsRedSizeSlider, blobsGreenSizeSlider,
+      blobsBlueSizeSlider].forEach(function(slider) {
+    noUiSlider.create(slider, {
+      start: 64,
+      range: { min: 0, max: 255 },
+    });
+    slider.noUiSlider.on('update', function() {
+      sendBlobs();
+    });
   });
 
   app.initialized = true;

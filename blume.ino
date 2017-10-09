@@ -4,10 +4,13 @@
 #include <FastLED.h>
 
 // These settings change per project!
-#define NUM_LEDS    18
+#define NUM_LEDS    50
 #define BASE_WIDTH  1
 // If true, adds 1 to BASE_WIDTH for every other row
 #define STAGGERED   false
+// POI: 18/1/false
+// STAFF: 50/1/false
+// CUCUMBER: 104/6/true
 
 // Only change these settings if you're wired to different pins, using a non-APA102 chipset,
 // using a different COLOR_ORDER for RGB, etc.
@@ -39,13 +42,15 @@ CRGB leds[NUM_LEDS];
 // Calculate max number of frames we can store in SRAM
 #define SRAM_SIZE 2048
 // Assume we need this much for everything else
-#define VAR_ALLOWANCE 600
-#define MAX_FRAMES ((SRAM_SIZE - VAR_ALLOWANCE) / NUM_LEDS)
+#define VAR_ALLOWANCE (NUM_LEDS * 3 + 600)
+#define MAX_FRAMES (BASE_WIDTH == 1 ? (SRAM_SIZE - VAR_ALLOWANCE) / NUM_LEDS : 0)
 
 int width;
 int height;
 int eepromStart;
 long saveTarget;
+long lastFrameTime;
+float lastFrameDuration;
 
 //! Len bright mode hue sat c1 c2 c3 c4 chk 
 struct SavedSettings {
@@ -108,6 +113,8 @@ void setup() {
   restoreFromSettings();
   // Make sure we won't save unless we get new settings
   saveTarget = 0;
+  // Initialize lastFrameTime
+  lastFrameTime = millis();
 
   /*
   FastLED.setBrightness(255);
@@ -126,18 +133,40 @@ void setup() {
   */
 }
 
-
+void doFPS() {
+  /*
+  static byte totalLoops = 0;
+  static long totalDurations = 0;
+  totalDurations += lastFrameDuration;
+  totalLoops++;
+  if (totalLoops == 100) {
+    Serial.print(F("FPS: "));
+    Serial.println((float)totalLoops / (float)totalDurations * 1000.0);
+    totalLoops = 0;
+    totalDurations = 0;
+  }
+  */
+}
 void loop() {
+  lastFrameDuration = millis() - lastFrameTime;
   runMode();
+  lastFrameTime = millis();
   FastLED.show();
   checkSerial();
   checkSave();
+  doFPS();
 }
 
-
+inline bool isImaginary(byte x, byte y) {
+  return x >= width || y >= height || (
+    STAGGERED && (x % 2 != y % 2));
+}
 void setAt(byte x, byte y, CRGB color) {
   if (STAGGERED) {
-    
+    if (isImaginary(x, y)) {
+      return;
+    }
+    leds[x / 2 + (x % 2) * (BASE_WIDTH + 1) + width * (y / 2)] = color;
   } else {
     if (x + y * width < NUM_LEDS) {
       leds[x + y * width] = color;
@@ -247,9 +276,10 @@ void checkSerial() {
   /*Serial.print(len);
   Serial.print(F(" -> "));*/
   // We have new settings! Apply them.
-  restoreFromSettings();
-  // Plan to save this if we don't get any more data
-  saveTarget = millis() + EEPROM_SAVE_TIMEOUT_MS;
+  if (restoreFromSettings()) {
+    // Plan to save this if we don't get any more data
+    saveTarget = millis() + EEPROM_SAVE_TIMEOUT_MS;
+  }
 }
 
 void checkSave() {
@@ -264,7 +294,7 @@ void checkSave() {
   }
 }
 
-void restoreFromSettings() {
+bool restoreFromSettings() {
   /*Serial.print(F("settings: "));
   Serial.print(settings.brightness);
   Serial.print(',');
@@ -292,10 +322,14 @@ void restoreFromSettings() {
     runMovement(true);
   } else if (settings.mode == 'P') {
     runPixels(true);
+  } else if (settings.mode == 'B') {
+    runBlobs(true);
   } else {
     Serial.print(F("Unknown mode: "));
     Serial.println(settings.mode);
+    return false;
   }
+  return true;
 }
 
 void runMode() {
@@ -303,12 +337,14 @@ void runMode() {
     runMovement(false);
   } else if (settings.mode == 'P') {
     runPixels(false);
+  } else if (settings.mode == 'B') {
+    runBlobs(false);
   }
 }
 
 float mapRange(float from,
-              float fromLow, float fromHigh,
-              float toLow, float toHigh) {
+               float fromLow, float fromHigh,
+               float toLow, float toHigh) {
   return toLow + (from-fromLow) / (fromHigh-fromLow) * (toHigh-toLow);
 }
 
@@ -320,7 +356,6 @@ void runMovement(bool initialize) {
   static float speed;
   static float size;
   static float position = 0;
-  static long lastFrame;
   if (initialize) {
     // c1 is speed 0-100 if normal, 101-201 if rainbow;
     // c2 is size 0-100 if vertical, 101-201 if horizontal
@@ -338,8 +373,7 @@ void runMovement(bool initialize) {
       size = mapRange(size, 0, 100, 2, dimension - 2);
     }
   } else {
-    float frameTime = millis() - lastFrame;
-    position += speed * frameTime;
+    position += speed * lastFrameDuration;
   }
   // Correct position if it's out of bounds.
   // Do this outside of the += above because it could
@@ -380,9 +414,6 @@ void runMovement(bool initialize) {
       fillRow(i, color);
     }
   }
-  
-  // Remember when this frame happened.
-  lastFrame = millis();
 }
 
 void runPixels(bool initialize) {
@@ -405,5 +436,78 @@ void runPixels(bool initialize) {
   }
 }
 
+// Positions should really be bytes, but we're about to do arithmetic with them that wants negative results.
+float distance(float pos1, float pos2, float dimensionSize) {
+  float distance = abs(pos1 - pos2);
+  while (distance > dimensionSize) distance -= dimensionSize;
+  if (distance > dimensionSize / 2) {
+    distance = dimensionSize - distance;
+  }
+  return distance;
+}
+
+#define RED 0
+#define GREEN 1
+#define BLUE 2
+void runBlobs(bool initialize) {
+  static float xPos[] = { (float)width / 2.0, (float)width / 2.0, (float)width / 2.0 };
+  static float yPos[] = { (float)height / 2.0, (float)height / 2.0, (float)height / 2.0 };
+  static float xIncrement[3];
+  static float yIncrement[3];
+  static int steps[] = { 0, 0, 0 };
+  static float size[3];
+
+  if (initialize) {
+    for (byte c = RED; c <= BLUE; c++) {
+      // Cancel any pending movements since we may have a new speed
+      steps[c] = 0;
+      // Initialize size for this blob
+      size[c] = mapRange(*(&settings.saturation + c), 0, 255, 0, max(width, height));
+    }
+  }
+
+  CRGB color;
+  // Render the spots.
+  for (byte x = 0; x < width; x++) {
+    for (byte y = 0; y < height; y++) {
+      if (isImaginary(x, y)) {
+        continue;
+      }
+      for (byte c = RED; c <= BLUE; c++) {
+        float xDist = distance(x, xPos[c], width);
+        float yDist = distance(y, yPos[c], height);
+        float dist = sqrt(xDist * xDist + yDist * yDist);
+        color[c] = 255.0 * (size[c] - min(size[c], dist)) / size[c];
+      }
+      setAt(x, y, color);
+    }
+  }
+
+  // Move the spots.
+  // Two-dimensional displays want one of (x,y) to be zero sometimes so
+  // the movement isn't always diagonal. One-dimensional displays always want
+  // movement in whichever is the meaningful dimension.
+  bool allowZero = width > 1 || height > 1;
+  for (byte c = RED; c <= BLUE; c++) {
+    if (!steps[c]) {
+      xIncrement[c] = (float)(random(allowZero ? 0 : width * settings.hue / 2, width * settings.hue) + 100) / 10000.0;
+      yIncrement[c] = (float)(random(allowZero ? 0 : height * settings.hue / 2, height * settings.hue) + 100) / 10000.0;
+      if (random(2)) {
+        xIncrement[c] *= -1;
+      }
+      if (random(2)) {
+        yIncrement[c] *= -1;
+      }
+      steps[c] = random(10, 50);
+    }
+    xPos[c] += xIncrement[c] * lastFrameDuration;
+    yPos[c] += yIncrement[c] * lastFrameDuration;
+    while (xPos[c] > width) xPos[c] -= width;
+    while (yPos[c] > height) yPos[c] -= height;
+    while (xPos[c] < 0) xPos[c] += width;
+    while (yPos[c] < 0) yPos[c] += height;
+    steps[c]--;
+  }
+}
 
 
