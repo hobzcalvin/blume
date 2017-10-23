@@ -68,7 +68,8 @@ function sendColor() {
       size + (
         $('#movement_vertical').is(':checked') ? 0 : 101));
   } else {
-    app.sendCommand(null, hsv.v, rainbows ? 'R' : 'C', hsv.h, hsv.s);
+    app.sendCommand(null, hsv.v, rainbows ? 'R' : 'C', hsv.h, hsv.s,
+                    $('#random').is(':checked') ? 128 : 0);
   }
 };
 
@@ -188,6 +189,9 @@ app.initialize = function() {
   });
 
   $('#rainbows').change(function() {
+    sendColor();
+  });
+  $('#random').change(function() {
     sendColor();
   });
   $('#movement').change(function() {

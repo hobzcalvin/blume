@@ -4,13 +4,29 @@
 #include <FastLED.h>
 
 // These settings change per project!
-#define NUM_LEDS    50
-#define BASE_WIDTH  1
+#define NUM_LEDS    60
+#define BASE_WIDTH  6
 // If true, adds 1 to BASE_WIDTH for every other row
-#define STAGGERED   false
-// POI: 18/1/false
-// STAFF: 50/1/false
-// CUCUMBER: 104/6/true
+#define STAGGERED   true
+// Wiring is in a zig-zag pattern.
+#define ZIGZAG   false
+// POI: 18/1/false/false
+// STAFF: 50/1/false/false
+// CUCUMBER: 104/6/true/false
+// VICTORIA HAT: 28/16/false/false/Clock=2
+// CARO THING: 18/1/false/false
+// NEHA BULB: 76/6/true/false
+// STOPH: 20/1/false/false
+// NINA: 18/1/false/false
+// TREVOR: 75/6/true/false
+// LEIGH BIKE: 80/1/false/false
+// VICTORIA OTHER: 71/1/false/false
+// NINA OTHER: 56/1/false/false/Clock=2
+// BLUME VIVE: 47/6/true/false
+// BLUME SCARF: 120/40/false/true
+// BLUME DUBIOUS: 60/6/true/false
+
+#define DEBUG false
 
 // Only change these settings if you're wired to different pins, using a non-APA102 chipset,
 // using a different COLOR_ORDER for RGB, etc.
@@ -42,7 +58,7 @@ CRGB leds[NUM_LEDS];
 // Calculate max number of frames we can store in SRAM
 #define SRAM_SIZE 2048
 // Assume we need this much for everything else
-#define VAR_ALLOWANCE (NUM_LEDS * 3 + 600)
+#define VAR_ALLOWANCE (NUM_LEDS * 3 + 850)
 #define MAX_FRAMES (BASE_WIDTH == 1 ? (SRAM_SIZE - VAR_ALLOWANCE) / NUM_LEDS : 0)
 
 int width;
@@ -102,6 +118,21 @@ void setup() {
   Serial.print('x');
   Serial.println(height);*/
 
+  if (DEBUG) {
+    FastLED.setBrightness(255);
+    fill_solid(leds, NUM_LEDS, 0xFF0000);
+    FastLED.delay(1000);
+    Serial.println(F("did the thing"));
+    fill_solid(leds, NUM_LEDS, 0x00FF00);
+    FastLED.delay(1000);
+    Serial.println(F("yep"));
+    fill_solid(leds, NUM_LEDS, 0x0000FF);
+    FastLED.delay(1000);
+    Serial.println(F("done"));
+    fill_solid(leds, NUM_LEDS, 0x000000);
+    FastLED.delay(1000);
+    Serial.println(F("clear"));
+  }
 
   // Should be first time only: Write a valid eepromStart address
   EEPROM.put(EEPROM_START_POINTER_ADDR, 0x2);
@@ -115,37 +146,21 @@ void setup() {
   saveTarget = 0;
   // Initialize lastFrameTime
   lastFrameTime = millis();
-
-  /*
-  FastLED.setBrightness(255);
-  fill_solid(leds, NUM_LEDS, 0xFF0000);
-  FastLED.delay(1000);
-  Serial.println(F("did the thing"));
-  fill_solid(leds, NUM_LEDS, 0x00FF00);
-  FastLED.delay(1000);
-  Serial.println(F("yep"));
-  fill_solid(leds, NUM_LEDS, 0x0000FF);
-  FastLED.delay(1000);
-  Serial.println(F("done"));
-  fill_solid(leds, NUM_LEDS, 0x000000);
-  FastLED.delay(1000);
-  Serial.println(F("clear"));
-  */
 }
 
 void doFPS() {
-  /*
-  static byte totalLoops = 0;
-  static long totalDurations = 0;
-  totalDurations += lastFrameDuration;
-  totalLoops++;
-  if (totalLoops == 100) {
-    Serial.print(F("FPS: "));
-    Serial.println((float)totalLoops / (float)totalDurations * 1000.0);
-    totalLoops = 0;
-    totalDurations = 0;
+  if (DEBUG) {
+    static byte totalLoops = 0;
+    static long totalDurations = 0;
+    totalDurations += lastFrameDuration;
+    totalLoops++;
+    if (totalLoops == 100) {
+      Serial.print(F("FPS: "));
+      Serial.println((float)totalLoops / (float)totalDurations * 1000.0);
+      totalLoops = 0;
+      totalDurations = 0;
+    }
   }
-  */
 }
 void loop() {
   lastFrameDuration = millis() - lastFrameTime;
@@ -166,10 +181,15 @@ void setAt(byte x, byte y, CRGB color) {
     if (isImaginary(x, y)) {
       return;
     }
-    leds[x / 2 + (x % 2) * (BASE_WIDTH + 1) + width * (y / 2)] = color;
+    byte idx = x / 2 + (x % 2) * (BASE_WIDTH + 1) + width * (y / 2);
+    if (idx >= NUM_LEDS) {
+      return;
+    }
+    leds[idx] = color;
   } else {
-    if (x + y * width < NUM_LEDS) {
-      leds[x + y * width] = color;
+    byte idx = ((ZIGZAG && y % 2) ? (width - 1 - x) : x) + y * width;
+    if (idx < NUM_LEDS) {
+      leds[idx] = color;
     }
   }
 }
@@ -195,7 +215,11 @@ void fillRow(byte row, CRGB color) {
   }
 }
 void fillCol(byte col, CRGB color) {
-  if (STAGGERED) {
+  if (ZIGZAG) {
+    for (byte i = 0; i < height; i++) {
+      setAt(col, i, color);
+    }
+  } else if (STAGGERED) {
     for (byte i = col / 2 + (col % 2) * (BASE_WIDTH + 1);
          i < NUM_LEDS; i += width) {
       leds[i] = color;
@@ -268,7 +292,7 @@ void checkSerial() {
       // The mode must have already been 'P' for this to work.
       settings.hue = previous.hue;
     } else {
-      Serial.println("Can't modify frame timing without image frames first");
+      Serial.println(F("Can't modify frame timing without image frames first"));
       settings = previous;
     }
   }
@@ -290,26 +314,33 @@ void checkSave() {
     // Uses update() so only rewrites if necessary
     EEPROM.put(eepromStart, settings);
     saveTarget = 0;
-    //Serial.println(F("SAVED!"));
+    if (DEBUG) {
+      Serial.println(F("SAVED!"));
+    }
   }
 }
 
 bool restoreFromSettings() {
-  /*Serial.print(F("settings: "));
-  Serial.print(settings.brightness);
-  Serial.print(',');
-  Serial.print(settings.mode);
-  Serial.print(',');
-  Serial.print(settings.hue);
-  Serial.print(',');
-  Serial.print(settings.saturation);
-  Serial.print(',');
-  Serial.print(settings.c1);
-  Serial.print(',');
-  Serial.println(settings.c2);*/
+  if (DEBUG) {
+    Serial.print(F("settings: "));
+    Serial.print(settings.brightness);
+    Serial.print(',');
+    Serial.print(settings.mode);
+    Serial.print(',');
+    Serial.print(settings.hue);
+    Serial.print(',');
+    Serial.print(settings.saturation);
+    Serial.print(',');
+    Serial.print(settings.c1);
+    Serial.print(',');
+    Serial.println(settings.c2);
+  }
   
   FastLED.setBrightness(settings.brightness);
-  if (settings.mode == 'C') {
+  if ((settings.mode == 'C' || settings.mode == 'R') &&
+      settings.c1 >= 128) {
+    runRandom(true);
+  } else if (settings.mode == 'C') {
     fill_solid(leds, NUM_LEDS, CHSV(settings.hue, settings.saturation, 255));
   } else if (settings.mode == 'R') {
     byte delta = settings.saturation >> 4;
@@ -333,7 +364,10 @@ bool restoreFromSettings() {
 }
 
 void runMode() {
-  if (settings.mode == 'M') {
+  if ((settings.mode == 'C' || settings.mode == 'R') &&
+      settings.c1 >= 128) {
+    runRandom(false);
+  } else if (settings.mode == 'M') {
     runMovement(false);
   } else if (settings.mode == 'P') {
     runPixels(false);
@@ -370,7 +404,10 @@ void runMovement(bool initialize) {
       //size = (size / 100.0 * 256.0 / dimension * 2.0);
       size = mapRange(size, 0, 100, 1, 256.0 / dimension * 2.0);
     } else {
-      size = mapRange(size, 0, 100, 2, dimension - 2);
+      // Bit of a hack to work with dimensions less than 5; otherwise
+      // "bigger" may be less than "smaller".
+      byte dimRange = dimension < 5 ? 1 : 2;
+      size = mapRange(size, 0, 100, dimRange, dimension - dimRange);
     }
   } else {
     position += speed * lastFrameDuration;
@@ -510,4 +547,39 @@ void runBlobs(bool initialize) {
   }
 }
 
+#define DOT_SPEED 1
+#define HUE_VAR 15
+#define SAT_VAR 10
+#define BRIGHT_VAR 80
+void oneRandom(byte x, byte y) {
+  setAt(x, y, CHSV(
+    random(settings.hue - HUE_VAR, settings.hue + HUE_VAR),
+    random(max(settings.saturation - SAT_VAR, 0), min(settings.saturation + SAT_VAR, 255)),
+    random(255 - BRIGHT_VAR, 256)));  
+}
+void runRandom(bool initialize) {
+  static long frameTarget;
+  if (initialize) {
+    frameTarget = 0;
+    for (byte x = 0; x < width; x++) {
+      for (byte y = 0; y < height; y++) {
+        if (!isImaginary(x, y)) {
+          oneRandom(x, y);
+        }
+      }
+    }
+  }
+  if (true) {
+    byte x;
+    byte y;
+    do {
+      x = random(width);
+      y = random(height);
+    } while (isImaginary(x, y));
+    if (millis() > frameTarget) {
+      oneRandom(x, y);
+      frameTarget = millis() + DOT_SPEED;
+    }
+  }
+}
 
