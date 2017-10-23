@@ -1,5 +1,5 @@
 # Blume
-Blume is a platform for LED projects. It combines [Bluno Beetle by DFRobot](https://www.dfrobot.com/wiki/index.php/Bluno_Beetle_SKU:DFR0339), a cheap bluetooth-enabled [Arduino](https://www.arduino.cc/) clone, with a cross-platform [Cordova](https://cordova.apache.org/) app. This app lets you control LEDs connected to the Beetle with any smartphone or tablet. See the [browser-based demo](hobzcalvin.github.io/blume) or download the app from the [iOS App Store](https://itunes.apple.com/us/app/blume-led/id1288248844) or [Android Play Store](https://play.google.com/store/apps/details?id=org.selfobserved.blume).
+Blume is a platform for LED projects. It combines [Bluno Beetle by DFRobot](https://www.dfrobot.com/wiki/index.php/Bluno_Beetle_SKU:DFR0339), a cheap bluetooth-enabled [Arduino](https://www.arduino.cc/) clone, with a cross-platform [Cordova](https://cordova.apache.org/) app. This app lets you control LEDs connected to the Beetle with any smartphone or tablet. See the [browser-based demo](http://hobzcalvin.github.io/blume) or download the app from the [iOS App Store](https://itunes.apple.com/us/app/blume-led/id1288248844) or [Android Play Store](https://play.google.com/store/apps/details?id=org.selfobserved.blume).
 
 ## Running the App
 - Install [npm](https://www.npmjs.com/) if you don't have it
