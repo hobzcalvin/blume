@@ -15,11 +15,20 @@ Blume is a platform for LED projects. It combines [Bluno Beetle by DFRobot](http
 - Under `Tools > Port` it's something like `/dev/cu.usbmodem1411` on macOS or whichever one identifies as `Arduino/Genuino Uno`
 - Default settings for `DATA_PIN_0`, `CLOCK_PIN_0`, etc. should work if you're using the recommended wiring layout and APA102 LEDs. Refer to [FastLED](http://fastled.io/)'s documentation to use other LED chipsets etc.
 - Change `NUM_LEDS`, `BASE_WIDTH`, `STAGGERED`, and `ZIGZAG` to suit your project.
- - The code currently assumes that projects with `BASE_WIDTH` greater than 1 are using flexible LED strips wrapped around an object, and `BASE_WIDTH` is the number of LEDs per "wrap".
- - If the LEDs of one wrap are offset from the LEDs above and below, setting `STAGGERED` to true will account for this alignment, adding 1 to `BASE_WIDTH` for every other row. 
- - `ZIGZAG` should be set true if your LEDs are arranged in rows like a snake, where the direction of data alternates each row.
+  - The code currently assumes that projects with `BASE_WIDTH` greater than 1 are using flexible LED strips wrapped around an object, and `BASE_WIDTH` is the number of LEDs per "wrap".
+  - If the LEDs of one wrap are offset from the LEDs above and below, setting `STAGGERED` to true will account for this alignment, adding 1 to `BASE_WIDTH` for every other row. 
+  - `ZIGZAG` should be set true if your LEDs are arranged in rows like a snake, where the direction of data alternates each row.
 - Upload code to Beetle
 
 ## TODO
+- Investigate over-air programming options
+- Add "locking" so a Blume can be "paired" with and only accessed by a certain app instance, or passphrase, etc.
+- Some new modes:
+  - 2 or 3-color palette mode
+  - "Sparkle" ("random" is the start of this)
+  - Text to POV
+  - Monochrome POV with color setting after data is sent
+  - Full-color POV? Very limited frame storage available...
+- Make a custom board that works even better with LEDs
 - Develop for other bluetooth-enabled Arduinos
 - Evaluate/refactor [easyble](https://evothings.com/doc/lib-doc/evothings.easyble.html) and other [Evothings](http://evothings.com/) remnants (a bit one-size-fits-all)
