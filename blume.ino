@@ -4,18 +4,20 @@
 #include <FastLED.h>
 
 // These settings change per project!
-#define NUM_LEDS    60
-#define BASE_WIDTH  6
+#define NUM_LEDS    72
+#define BASE_WIDTH  12
 // If true, adds 1 to BASE_WIDTH for every other row
-#define STAGGERED   true
+#define STAGGERED false
 // Wiring is in a zig-zag pattern.
 #define ZIGZAG   false
+// Support text mode; currently 6-pixel height only.
+#define TEXTMODE true
 // POI: 18/1/false/false
 // STAFF: 50/1/false/false
 // CUCUMBER: 104/6/true/false
 // VICTORIA HAT: 28/16/false/false/Clock=2
 // CARO THING: 18/1/false/false
-// NEHA BULB: 76/6/true/false
+// NEHA BULB: 76/6/true/falsese
 // STOPH: 20/1/false/false
 // NINA: 18/1/false/false
 // TREVOR: 75/6/true/false
@@ -25,8 +27,9 @@
 // BLUME VIVE: 47/6/true/false
 // BLUME SCARF: 120/40/false/true
 // BLUME DUBIOUS: 60/6/true/false
+// BLUME FEATHER: 72/12/false/false
 
-#define DEBUG false
+#define DEBUG true
 
 // Only change these settings if you're wired to different pins, using a non-APA102 chipset,
 // using a different COLOR_ORDER for RGB, etc.
@@ -49,6 +52,11 @@
 
 // EVERYTHING BELOW HERE WON'T CHANGE FOR A NORMAL PROJECT.
 
+#if TEXTMODE
+// Include this here because it uses keywords we #define below like "width" and "height"
+#include "Adafruit_GFX.h"
+#endif
+
 
 #define EEPROM_SAVE_TIMEOUT_MS 5000
 #define EEPROM_START_POINTER_ADDR 0x0
@@ -61,8 +69,10 @@ CRGB leds[NUM_LEDS];
 #define VAR_ALLOWANCE (NUM_LEDS * 3 + 850)
 #define MAX_FRAMES (BASE_WIDTH == 1 ? (SRAM_SIZE - VAR_ALLOWANCE) / NUM_LEDS : 0)
 
-int width;
-int height;
+#define width (STAGGERED ? BASE_WIDTH * 2 + 1 : BASE_WIDTH)
+#define logical_num_leds (STAGGERED ? NUM_LEDS * 2 : NUM_LEDS)
+// Add extra row if there's a remainder.
+#define height (logical_num_leds / width + (logical_num_leds % width ? 1 : 0))
 int eepromStart;
 long saveTarget;
 long lastFrameTime;
@@ -83,6 +93,57 @@ SavedSettings settings;
 // Each pixel is in 8-bit RRRGGGBB format
 byte ledFrames[NUM_LEDS * MAX_FRAMES];
 
+#if TEXTMODE
+#include "Picopixel.h"
+void setAt(byte x, byte y, CRGB color);
+class BlumeGFX : public Adafruit_GFX {
+  public:
+    BlumeGFX(int16_t w, int16_t h);
+    ~BlumeGFX(void);
+    void drawPixel(int16_t x, int16_t y, uint16_t color);
+    CRGB realColor;
+    bool printed;
+};
+BlumeGFX::BlumeGFX(int16_t w, int16_t h) : Adafruit_GFX(w, h) {
+}
+BlumeGFX::~BlumeGFX(void) {
+}
+void BlumeGFX::drawPixel(int16_t x, int16_t y, uint16_t color) {
+  if (x < 0 || x >= width || y < 0 || y >= height) {
+    return;
+  }
+  setAt(x, height-1-y, realColor);
+  printed = true;
+}
+
+BlumeGFX gfx = BlumeGFX(width, height);
+
+// Max length 32
+char text[32] = "Hello World! I'm Grant.";
+void runText(bool initialize) {
+  static int pos;
+  static long nextShift;
+  if (initialize) {
+    gfx.setFont(&Picopixel);
+    gfx.setTextWrap(false);
+    pos = width;
+    nextShift = 0;
+  }
+  if (!nextShift || millis() >= nextShift) {
+    pos--;
+    nextShift = millis() + 100;
+    gfx.setCursor(pos, 4);
+    fill_solid(leds, NUM_LEDS, 0);
+    gfx.realColor = 0xFF7F00;
+    gfx.printed = false;
+    gfx.print(text);
+    if (!gfx.printed) {
+      pos = width;
+    }
+  }
+}
+#endif
+
 void setup() {
   // Initialize serial connection to bluetooth chip
   Serial.begin(115200);
@@ -100,48 +161,31 @@ void setup() {
   FastLED.setBrightness(0);
   FastLED.show();
 
-  int logical_num_leds;
-  if (STAGGERED) {
-    // Because they're staggered, logical width is twice plus one.
-    // Every other pixel is imaginary.
-    width = BASE_WIDTH * 2 + 1;
-    // Need to multiply this so the height calculation works out.
-    logical_num_leds = NUM_LEDS * 2;
-  } else {
-    // Normal width is fine here.
-    width = BASE_WIDTH;
-    logical_num_leds = NUM_LEDS;
-  }
-  // Add extra row if there's a remainder.
-  height = logical_num_leds / width + (logical_num_leds % width ? 1 : 0);
   /*Serial.print(width);
   Serial.print('x');
   Serial.println(height);*/
 
   if (DEBUG) {
-    FastLED.setBrightness(255);
+    FastLED.setBrightness(3);
     fill_solid(leds, NUM_LEDS, 0xFF0000);
-    FastLED.delay(1000);
-    Serial.println(F("did the thing"));
+    FastLED.delay(500);
+    Serial.println(F("Hello"));
     fill_solid(leds, NUM_LEDS, 0x00FF00);
-    FastLED.delay(1000);
-    Serial.println(F("yep"));
+    FastLED.delay(500);
+    Serial.println(F("World"));
     fill_solid(leds, NUM_LEDS, 0x0000FF);
-    FastLED.delay(1000);
-    Serial.println(F("done"));
+    FastLED.delay(500);
+    Serial.println(F("!"));
     fill_solid(leds, NUM_LEDS, 0x000000);
-    FastLED.delay(1000);
-    Serial.println(F("clear"));
+    FastLED.delay(500);
   }
 
   // Should be first time only: Write a valid eepromStart address
   EEPROM.put(EEPROM_START_POINTER_ADDR, 0x2);
   // Initialize eepromStart: the address where we start writing our settings.
   EEPROM.get(EEPROM_START_POINTER_ADDR, eepromStart);
-  // Initialize settings
-  EEPROM.get(eepromStart, settings);
   // Re-apply saved settings
-  restoreFromSettings();
+  restoreFromSettings(true);
   // Make sure we won't save unless we get new settings
   saveTarget = 0;
   // Initialize lastFrameTime
@@ -300,7 +344,7 @@ void checkSerial() {
   /*Serial.print(len);
   Serial.print(F(" -> "));*/
   // We have new settings! Apply them.
-  if (restoreFromSettings()) {
+  if (restoreFromSettings(false)) {
     // Plan to save this if we don't get any more data
     saveTarget = millis() + EEPROM_SAVE_TIMEOUT_MS;
   }
@@ -313,6 +357,11 @@ void checkSave() {
       settings.mode != 'P') {
     // Uses update() so only rewrites if necessary
     EEPROM.put(eepromStart, settings);
+#if TEXTMODE
+    if (settings.mode == 'T') {
+      EEPROM.put(eepromStart + sizeof(settings), text);
+    }
+#endif
     saveTarget = 0;
     if (DEBUG) {
       Serial.println(F("SAVED!"));
@@ -320,7 +369,16 @@ void checkSave() {
   }
 }
 
-bool restoreFromSettings() {
+bool restoreFromSettings(bool loadEeprom) {
+  if (loadEeprom) {
+    // Initialize settings
+    EEPROM.get(eepromStart, settings);
+#if TEXTMODE
+    if (settings.mode == 'T') {
+      EEPROM.get(eepromStart + sizeof(settings), text);
+    }
+#endif
+  }
   if (DEBUG) {
     Serial.print(F("settings: "));
     Serial.print(settings.brightness);
@@ -355,6 +413,8 @@ bool restoreFromSettings() {
     runPixels(true);
   } else if (settings.mode == 'B') {
     runBlobs(true);
+  } else if (settings.mode == 'T') {
+    runText(true);
   } else {
     Serial.print(F("Unknown mode: "));
     Serial.println(settings.mode);
@@ -373,6 +433,8 @@ void runMode() {
     runPixels(false);
   } else if (settings.mode == 'B') {
     runBlobs(false);
+  } else if (settings.mode == 'T') {
+    runText(false);
   }
 }
 
@@ -582,4 +644,6 @@ void runRandom(bool initialize) {
     }
   }
 }
+
+
 
