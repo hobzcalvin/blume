@@ -5,8 +5,8 @@
 
 // These settings change per project!
 #define NUM_LEDS    72
-#define BASE_WIDTH  12
-// If true, adds 1 to BASE_WIDTH for every other row
+#define BASE_WID  12
+// If true, adds 1 to BASE_WID for every other row
 #define STAGGERED false
 // Wiring is in a zig-zag pattern.
 #define ZIGZAG   false
@@ -17,7 +17,7 @@
 // CUCUMBER: 104/6/true/false
 // VICTORIA HAT: 28/16/false/false/Clock=2
 // CARO THING: 18/1/false/false
-// NEHA BULB: 76/6/true/falsese
+// NEHA BULB: 76/6/true/false
 // STOPH: 20/1/false/false
 // NINA: 18/1/false/false
 // TREVOR: 75/6/true/false
@@ -29,7 +29,7 @@
 // BLUME DUBIOUS: 60/6/true/false
 // BLUME FEATHER: 72/12/false/false
 
-#define DEBUG true
+#define DEBUG false
 
 // Only change these settings if you're wired to different pins, using a non-APA102 chipset,
 // using a different COLOR_ORDER for RGB, etc.
@@ -53,7 +53,7 @@
 // EVERYTHING BELOW HERE WON'T CHANGE FOR A NORMAL PROJECT.
 
 #if TEXTMODE
-// Include this here because it uses keywords we #define below like "width" and "height"
+// Include this here because it uses keywords we #define below like "WIDTH" and "HEIGHT"
 #include "Adafruit_GFX.h"
 #endif
 
@@ -67,12 +67,12 @@ CRGB leds[NUM_LEDS];
 #define SRAM_SIZE 2048
 // Assume we need this much for everything else
 #define VAR_ALLOWANCE (NUM_LEDS * 3 + 850)
-#define MAX_FRAMES (BASE_WIDTH == 1 ? (SRAM_SIZE - VAR_ALLOWANCE) / NUM_LEDS : 0)
+#define MAX_FRAMES (BASE_WID == 1 ? (SRAM_SIZE - VAR_ALLOWANCE) / NUM_LEDS : 0)
 
-#define width (STAGGERED ? BASE_WIDTH * 2 + 1 : BASE_WIDTH)
+#define WIDTH (STAGGERED ? BASE_WID * 2 + 1 : BASE_WID)
 #define logical_num_leds (STAGGERED ? NUM_LEDS * 2 : NUM_LEDS)
 // Add extra row if there's a remainder.
-#define height (logical_num_leds / width + (logical_num_leds % width ? 1 : 0))
+#define HEIGHT (logical_num_leds / WIDTH + (logical_num_leds % WIDTH ? 1 : 0))
 int eepromStart;
 long saveTarget;
 long lastFrameTime;
@@ -109,14 +109,14 @@ BlumeGFX::BlumeGFX(int16_t w, int16_t h) : Adafruit_GFX(w, h) {
 BlumeGFX::~BlumeGFX(void) {
 }
 void BlumeGFX::drawPixel(int16_t x, int16_t y, uint16_t color) {
-  if (x < 0 || x >= width || y < 0 || y >= height) {
+  if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) {
     return;
   }
-  setAt(x, height-1-y, realColor);
+  setAt(x, HEIGHT-1-y, realColor);
   printed = true;
 }
 
-BlumeGFX gfx = BlumeGFX(width, height);
+BlumeGFX gfx = BlumeGFX(WIDTH, HEIGHT);
 
 // Max length 32
 char text[32] = "Hello World! I'm Grant.";
@@ -126,7 +126,7 @@ void runText(bool initialize) {
   if (initialize) {
     gfx.setFont(&Picopixel);
     gfx.setTextWrap(false);
-    pos = width;
+    pos = WIDTH;
     nextShift = 0;
   }
   if (!nextShift || millis() >= nextShift) {
@@ -138,7 +138,7 @@ void runText(bool initialize) {
     gfx.printed = false;
     gfx.print(text);
     if (!gfx.printed) {
-      pos = width;
+      pos = WIDTH;
     }
   }
 }
@@ -161,24 +161,23 @@ void setup() {
   FastLED.setBrightness(0);
   FastLED.show();
 
-  /*Serial.print(width);
-  Serial.print('x');
-  Serial.println(height);*/
-
-  if (DEBUG) {
-    FastLED.setBrightness(3);
-    fill_solid(leds, NUM_LEDS, 0xFF0000);
-    FastLED.delay(500);
-    Serial.println(F("Hello"));
-    fill_solid(leds, NUM_LEDS, 0x00FF00);
-    FastLED.delay(500);
-    Serial.println(F("World"));
-    fill_solid(leds, NUM_LEDS, 0x0000FF);
-    FastLED.delay(500);
-    Serial.println(F("!"));
-    fill_solid(leds, NUM_LEDS, 0x000000);
-    FastLED.delay(500);
-  }
+#if DEBUG
+  FastLED.setBrightness(3);
+  fill_solid(leds, NUM_LEDS, 0xFF0000);
+  FastLED.delay(500);
+  Serial.print(F("Width: "));
+  Serial.println(WIDTH);
+  fill_solid(leds, NUM_LEDS, 0x00FF00);
+  FastLED.delay(500);
+  Serial.print(F("Height: "));
+  Serial.println(HEIGHT);
+  fill_solid(leds, NUM_LEDS, 0x0000FF);
+  FastLED.delay(500);
+  Serial.print(F("Number of LEDs: "));
+  Serial.println(NUM_LEDS);
+  fill_solid(leds, NUM_LEDS, 0x000000);
+  FastLED.delay(500);
+#endif
 
   // Should be first time only: Write a valid eepromStart address
   EEPROM.put(EEPROM_START_POINTER_ADDR, 0x2);
@@ -193,18 +192,19 @@ void setup() {
 }
 
 void doFPS() {
-  if (DEBUG) {
-    static byte totalLoops = 0;
-    static long totalDurations = 0;
-    totalDurations += lastFrameDuration;
-    totalLoops++;
-    if (totalLoops == 100) {
-      Serial.print(F("FPS: "));
-      Serial.println((float)totalLoops / (float)totalDurations * 1000.0);
-      totalLoops = 0;
-      totalDurations = 0;
-    }
+// This is a no-op when DEBUG=false
+#if DEBUG
+  static byte totalLoops = 0;
+  static long totalDurations = 0;
+  totalDurations += lastFrameDuration;
+  totalLoops++;
+  if (totalLoops == 100) {
+    Serial.print(F("FPS: "));
+    Serial.println((float)totalLoops / (float)totalDurations * 1000.0);
+    totalLoops = 0;
+    totalDurations = 0;
   }
+#endif
 }
 void loop() {
   lastFrameDuration = millis() - lastFrameTime;
@@ -217,7 +217,7 @@ void loop() {
 }
 
 inline bool isImaginary(byte x, byte y) {
-  return x >= width || y >= height || (
+  return x >= WIDTH || y >= HEIGHT || (
     STAGGERED && (x % 2 != y % 2));
 }
 void setAt(byte x, byte y, CRGB color) {
@@ -225,13 +225,13 @@ void setAt(byte x, byte y, CRGB color) {
     if (isImaginary(x, y)) {
       return;
     }
-    byte idx = x / 2 + (x % 2) * (BASE_WIDTH + 1) + width * (y / 2);
+    byte idx = x / 2 + (x % 2) * (BASE_WID + 1) + WIDTH * (y / 2);
     if (idx >= NUM_LEDS) {
       return;
     }
     leds[idx] = color;
   } else {
-    byte idx = ((ZIGZAG && y % 2) ? (width - 1 - x) : x) + y * width;
+    byte idx = ((ZIGZAG && y % 2) ? (WIDTH - 1 - x) : x) + y * WIDTH;
     if (idx < NUM_LEDS) {
       leds[idx] = color;
     }
@@ -239,8 +239,8 @@ void setAt(byte x, byte y, CRGB color) {
 }
 void fillRow(byte row, CRGB color) {
   if (STAGGERED) {
-    byte start = row * width / 2;
-    byte num = width / 2;
+    byte start = row * WIDTH / 2;
+    byte num = WIDTH / 2;
     if (row % 2) {
       start += 1;
     } else {
@@ -251,25 +251,25 @@ void fillRow(byte row, CRGB color) {
     }
     fill_solid(leds + start, num, color);
   } else {
-    for (byte j = 0; j < width; j++) {
-      if (row * width + j < NUM_LEDS) {
-        leds[row * width + j] = color; 
+    for (byte j = 0; j < WIDTH; j++) {
+      if (row * WIDTH + j < NUM_LEDS) {
+        leds[row * WIDTH + j] = color; 
       }
     }
   }
 }
 void fillCol(byte col, CRGB color) {
   if (ZIGZAG) {
-    for (byte i = 0; i < height; i++) {
+    for (byte i = 0; i < HEIGHT; i++) {
       setAt(col, i, color);
     }
   } else if (STAGGERED) {
-    for (byte i = col / 2 + (col % 2) * (BASE_WIDTH + 1);
-         i < NUM_LEDS; i += width) {
+    for (byte i = col / 2 + (col % 2) * (BASE_WID + 1);
+         i < NUM_LEDS; i += WIDTH) {
       leds[i] = color;
     }
   } else {
-    for (byte j = col; j < NUM_LEDS; j+= width) {
+    for (byte j = col; j < NUM_LEDS; j+= WIDTH) {
       leds[j] = color;
     }
   }
@@ -308,7 +308,7 @@ void checkSerial() {
     } else {
       if (question == 'D') {
         // Send dimensions.
-        byte dims[] = { '!', 'D', width, height, NUM_LEDS, MAX_FRAMES };
+        byte dims[] = { '!', 'D', WIDTH, HEIGHT, NUM_LEDS, MAX_FRAMES };
         sendSeparately(dims, sizeof(dims));
       }
     }
@@ -363,9 +363,9 @@ void checkSave() {
     }
 #endif
     saveTarget = 0;
-    if (DEBUG) {
-      Serial.println(F("SAVED!"));
-    }
+#if DEBUG
+    Serial.println(F("SAVED!"));
+#endif
   }
 }
 
@@ -379,20 +379,20 @@ bool restoreFromSettings(bool loadEeprom) {
     }
 #endif
   }
-  if (DEBUG) {
-    Serial.print(F("settings: "));
-    Serial.print(settings.brightness);
-    Serial.print(',');
-    Serial.print(settings.mode);
-    Serial.print(',');
-    Serial.print(settings.hue);
-    Serial.print(',');
-    Serial.print(settings.saturation);
-    Serial.print(',');
-    Serial.print(settings.c1);
-    Serial.print(',');
-    Serial.println(settings.c2);
-  }
+#if DEBUG
+  Serial.print(F("settings: "));
+  Serial.print(settings.brightness);
+  Serial.print(',');
+  Serial.print(settings.mode);
+  Serial.print(',');
+  Serial.print(settings.hue);
+  Serial.print(',');
+  Serial.print(settings.saturation);
+  Serial.print(',');
+  Serial.print(settings.c1);
+  Serial.print(',');
+  Serial.println(settings.c2);
+#endif
   
   FastLED.setBrightness(settings.brightness);
   if ((settings.mode == 'C' || settings.mode == 'R') &&
@@ -457,7 +457,7 @@ void runMovement(bool initialize) {
     // c2 is size 0-100 if vertical, 101-201 if horizontal
     rainbow = settings.c1 > 100;
     horizontal = settings.c2 > 100;
-    dimension = horizontal ? width : height;
+    dimension = horizontal ? WIDTH : HEIGHT;
     speed = float(int(rainbow ? settings.c1 - 101 : settings.c1) - 50) * dimension / 8000.0;
     // First convert size to [0,100]
     size = horizontal ? settings.c2 - 101 : settings.c2;
@@ -549,8 +549,8 @@ float distance(float pos1, float pos2, float dimensionSize) {
 #define GREEN 1
 #define BLUE 2
 void runBlobs(bool initialize) {
-  static float xPos[] = { (float)width / 2.0, (float)width / 2.0, (float)width / 2.0 };
-  static float yPos[] = { (float)height / 2.0, (float)height / 2.0, (float)height / 2.0 };
+  static float xPos[] = { (float)WIDTH / 2.0, (float)WIDTH / 2.0, (float)WIDTH / 2.0 };
+  static float yPos[] = { (float)HEIGHT / 2.0, (float)HEIGHT / 2.0, (float)HEIGHT / 2.0 };
   static float xIncrement[3];
   static float yIncrement[3];
   static int steps[] = { 0, 0, 0 };
@@ -561,20 +561,20 @@ void runBlobs(bool initialize) {
       // Cancel any pending movements since we may have a new speed
       steps[c] = 0;
       // Initialize size for this blob
-      size[c] = mapRange(*(&settings.saturation + c), 0, 255, 0, max(width, height));
+      size[c] = mapRange(*(&settings.saturation + c), 0, 255, 0, max(WIDTH, HEIGHT));
     }
   }
 
   CRGB color;
   // Render the spots.
-  for (byte x = 0; x < width; x++) {
-    for (byte y = 0; y < height; y++) {
+  for (byte x = 0; x < WIDTH; x++) {
+    for (byte y = 0; y < HEIGHT; y++) {
       if (isImaginary(x, y)) {
         continue;
       }
       for (byte c = RED; c <= BLUE; c++) {
-        float xDist = distance(x, xPos[c], width);
-        float yDist = distance(y, yPos[c], height);
+        float xDist = distance(x, xPos[c], WIDTH);
+        float yDist = distance(y, yPos[c], HEIGHT);
         float dist = sqrt(xDist * xDist + yDist * yDist);
         color[c] = 255.0 * (size[c] - min(size[c], dist)) / size[c];
       }
@@ -586,11 +586,11 @@ void runBlobs(bool initialize) {
   // Two-dimensional displays want one of (x,y) to be zero sometimes so
   // the movement isn't always diagonal. One-dimensional displays always want
   // movement in whichever is the meaningful dimension.
-  bool allowZero = width > 1 || height > 1;
+  bool allowZero = WIDTH > 1 || HEIGHT > 1;
   for (byte c = RED; c <= BLUE; c++) {
     if (!steps[c]) {
-      xIncrement[c] = (float)(random(allowZero ? 0 : width * settings.hue / 2, width * settings.hue) + 100) / 10000.0;
-      yIncrement[c] = (float)(random(allowZero ? 0 : height * settings.hue / 2, height * settings.hue) + 100) / 10000.0;
+      xIncrement[c] = (float)(random(allowZero ? 0 : WIDTH * settings.hue / 2, WIDTH * settings.hue) + 100) / 10000.0;
+      yIncrement[c] = (float)(random(allowZero ? 0 : HEIGHT * settings.hue / 2, HEIGHT * settings.hue) + 100) / 10000.0;
       if (random(2)) {
         xIncrement[c] *= -1;
       }
@@ -601,10 +601,10 @@ void runBlobs(bool initialize) {
     }
     xPos[c] += xIncrement[c] * lastFrameDuration;
     yPos[c] += yIncrement[c] * lastFrameDuration;
-    while (xPos[c] > width) xPos[c] -= width;
-    while (yPos[c] > height) yPos[c] -= height;
-    while (xPos[c] < 0) xPos[c] += width;
-    while (yPos[c] < 0) yPos[c] += height;
+    while (xPos[c] > WIDTH) xPos[c] -= WIDTH;
+    while (yPos[c] > HEIGHT) yPos[c] -= HEIGHT;
+    while (xPos[c] < 0) xPos[c] += WIDTH;
+    while (yPos[c] < 0) yPos[c] += HEIGHT;
     steps[c]--;
   }
 }
@@ -623,8 +623,8 @@ void runRandom(bool initialize) {
   static long frameTarget;
   if (initialize) {
     frameTarget = 0;
-    for (byte x = 0; x < width; x++) {
-      for (byte y = 0; y < height; y++) {
+    for (byte x = 0; x < WIDTH; x++) {
+      for (byte y = 0; y < HEIGHT; y++) {
         if (!isImaginary(x, y)) {
           oneRandom(x, y);
         }
@@ -635,8 +635,8 @@ void runRandom(bool initialize) {
     byte x;
     byte y;
     do {
-      x = random(width);
-      y = random(height);
+      x = random(WIDTH);
+      y = random(HEIGHT);
     } while (isImaginary(x, y));
     if (millis() > frameTarget) {
       oneRandom(x, y);
