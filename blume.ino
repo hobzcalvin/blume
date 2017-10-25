@@ -339,6 +339,12 @@ void checkSerial() {
       Serial.println(F("Can't modify frame timing without image frames first"));
       settings = previous;
     }
+#if TEXTMODE
+  } else if (settings.mode == 'T') {
+    // Read up to the full length of text, or until a null terminator.
+    // Less error handling here; we don't really care what we get.
+    Serial.readBytesUntil('\0', text, sizeof(text));
+#endif
   }
 
   /*Serial.print(len);
@@ -413,8 +419,10 @@ bool restoreFromSettings(bool loadEeprom) {
     runPixels(true);
   } else if (settings.mode == 'B') {
     runBlobs(true);
+#if TEXTMODE
   } else if (settings.mode == 'T') {
     runText(true);
+#endif
   } else {
     Serial.print(F("Unknown mode: "));
     Serial.println(settings.mode);
@@ -433,8 +441,10 @@ void runMode() {
     runPixels(false);
   } else if (settings.mode == 'B') {
     runBlobs(false);
+#if TEXTMODE
   } else if (settings.mode == 'T') {
     runText(false);
+#endif
   }
 }
 
