@@ -121,25 +121,26 @@ BlumeGFX gfx = BlumeGFX(WIDTH, HEIGHT);
 // Max length 32
 char text[32] = "Hello World! I'm Grant.";
 void runText(bool initialize) {
-  static int pos;
+  // TODO: c1 = speed, or rainbow on?
+  // TODO: c2 = rainbow size, or rainbow vertical?
+  static int pos = WIDTH;
   static long nextShift;
   if (initialize) {
     gfx.setFont(&Picopixel);
     gfx.setTextWrap(false);
-    pos = WIDTH;
     nextShift = 0;
   }
   if (!nextShift || millis() >= nextShift) {
     pos--;
     nextShift = millis() + 100;
-    gfx.setCursor(pos, 4);
-    fill_solid(leds, NUM_LEDS, 0);
-    gfx.realColor = 0xFF7F00;
-    gfx.printed = false;
-    gfx.print(text);
-    if (!gfx.printed) {
-      pos = WIDTH;
-    }
+  }
+  gfx.setCursor(pos, 4);
+  fill_solid(leds, NUM_LEDS, 0);
+  gfx.realColor = CHSV(settings.hue, settings.saturation, 255);
+  gfx.printed = false;
+  gfx.print(text);
+  if (!gfx.printed) {
+    pos = WIDTH;
   }
 }
 #endif
@@ -198,7 +199,7 @@ void doFPS() {
   static long totalDurations = 0;
   totalDurations += lastFrameDuration;
   totalLoops++;
-  if (totalLoops == 100) {
+  if (totalLoops == 500) {
     Serial.print(F("FPS: "));
     Serial.println((float)totalLoops / (float)totalDurations * 1000.0);
     totalLoops = 0;
@@ -308,7 +309,13 @@ void checkSerial() {
     } else {
       if (question == 'D') {
         // Send dimensions.
-        byte dims[] = { '!', 'D', WIDTH, HEIGHT, NUM_LEDS, MAX_FRAMES };
+        byte dims[] = { '!', 'D', WIDTH, HEIGHT, NUM_LEDS, MAX_FRAMES,
+#if TEXTMODE
+          sizeof(text)
+#else
+          0
+#endif
+        };
         sendSeparately(dims, sizeof(dims));
       }
     }
@@ -343,7 +350,14 @@ void checkSerial() {
   } else if (settings.mode == 'T') {
     // Read up to the full length of text, or until a null terminator.
     // Less error handling here; we don't really care what we get.
-    Serial.readBytesUntil('\0', text, sizeof(text));
+    byte bytesRead = Serial.readBytesUntil('\0', text, sizeof(text));
+    if (bytesRead) {
+      if (bytesRead < sizeof(text)) {
+        for (byte i = bytesRead; i < sizeof(text); i++) {
+          text[i] = ' ';
+        }
+      }
+    }
 #endif
   }
 

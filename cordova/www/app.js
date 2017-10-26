@@ -149,6 +149,26 @@ sendBlobs = function() {
   app.sendCommand(null, bright, 'B', speed, rs, gs, bs);
 };
 
+sendText = function() {
+  if (!app.initialized) {
+    return;
+  }
+  if (pendingSends) {
+    doPostSend = function() {
+      sendText();
+    };
+    return;
+  }
+  var color = $("#textColorPicker").spectrum("get");
+  var hsv = color.toHsv();
+  hsv.h = Math.round(hsv.h / 360.0 * 255.0);
+  hsv.s = Math.round(hsv.s * 255.0);
+  hsv.v = Math.round(hsv.v * 255.0);
+  app.sendCommand(null, hsv.v, 'T', hsv.h, hsv.s);
+  var txt = new TextEncoder("ascii").encode($('#textInput').val() + '\0');
+  app.sendData(null, txt);
+}
+
 app.initialize = function() {
 
   $('#accordion .collapse').on('show.bs.collapse', function() {
@@ -161,6 +181,8 @@ app.initialize = function() {
       $('#img_select_none').click();
     } else if (this.id === 'collapseBlobs') {
       sendBlobs();
+    } else if (this.id === 'collapseText') {
+      sendText();
     }
   });
 
@@ -262,6 +284,16 @@ app.initialize = function() {
     });
   });
 
+  $('#textColorPicker').spectrum({
+    color: "#FF0000",
+    flat: true,
+    showInput: false,
+    showButtons: false,
+    preferredFormat: "hex",
+    move: sendText
+  });
+  $('#textInput').on('input', sendText);
+
   app.initialized = true;
   app.startScan();
   listDevices();
@@ -278,6 +310,7 @@ app.initialize = function() {
         height: 18,
         numLeds: 18,
         maxFrames: 64,
+        maxText: 32,
         name: 'Fake Blume',
         address: 'abcdefghi'
       };
@@ -336,12 +369,23 @@ function listDevices() {
     $('#scanResultView').show();
   }
   var anyConnected = false;
+  var anyImage = false;
+  var anyText = false;
+  // Set the max text length to the lowest supported maxText of any device.
+  var minText = 999;
   for (var i in app.devices) {
     var dev = app.devices[i];
     var htmlString = '<div class="deviceContainer';
     if (dev.isConnected()) {
       htmlString += ' connected';
       anyConnected = true;
+    }
+    if (dev.maxFrames) {
+      anyImage = true;
+    }
+    if (dev.maxText) {
+      anyText = true;
+      minText = Math.min(minText, dev.maxText);
     }
     htmlString += '" onclick="app.toggleConnect(\'' +
       dev.address + '\')">' +
@@ -355,6 +399,9 @@ function listDevices() {
     $('#scanResultView').append($(htmlString));
   }
   $('#controlView').toggle(anyConnected);
+  $('#imageCard').toggle(anyImage);
+  $('#textCard').toggle(anyText);
+  $('#textInput').attr('maxlength', minText);
 };
 
 app.startScan = function() {
@@ -563,7 +610,6 @@ app.receivedData = function(data) {
 
   if (data[0] === 0x58) {
     console.log("EEP!");
-    sendColor();
   } else if (data[0] === 0x21) {
     console.log("question?!", this);
     if (data[1] === 0x44) {
@@ -572,6 +618,8 @@ app.receivedData = function(data) {
       this.height = data[3];
       this.numLeds = data[4];
       this.maxFrames = data[5];
+      this.maxText = data[6];
+      listDevices();
     }
   }
 };
