@@ -62,14 +62,15 @@ function sendColor() {
   var speed = parseInt(speedSlider.noUiSlider.get());
   var size = parseInt(sizeSlider.noUiSlider.get());
   if ($('#movement').is(':checked')) {
-    app.sendCommand(null, hsv.v, 'M', hsv.h, hsv.s,
+    app.sendCommand(null, hsv.v,
+      $('#movement_random').is(':checked') ? 'Z' : 'M',
+      hsv.h, hsv.s,
       speed + (
         rainbows ? 101 : 0),
       size + (
         $('#movement_vertical').is(':checked') ? 0 : 101));
   } else {
-    app.sendCommand(null, hsv.v, rainbows ? 'R' : 'C', hsv.h, hsv.s,
-                    $('#random').is(':checked') ? 128 : 0);
+    app.sendCommand(null, hsv.v, rainbows ? 'R' : 'C', hsv.h, hsv.s);
   }
 };
 
@@ -211,9 +212,6 @@ app.initialize = function() {
   });
 
   $('#rainbows').change(function() {
-    sendColor();
-  });
-  $('#random').change(function() {
     sendColor();
   });
   $('#movement').change(function() {

@@ -343,7 +343,10 @@ void checkSerial() {
       // The mode must have already been 'P' for this to work.
       settings.hue = previous.hue;
     } else {
+#if DEBUG
       Serial.println(F("Can't modify frame timing without image frames first"));
+#endif
+      flushSerialIn();
       settings = previous;
     }
 #if TEXTMODE
@@ -403,7 +406,7 @@ bool restoreFromSettings(bool loadEeprom) {
   Serial.print(F("settings: "));
   Serial.print(settings.brightness);
   Serial.print(',');
-  Serial.print(settings.mode);
+  Serial.print(char(settings.mode));
   Serial.print(',');
   Serial.print(settings.hue);
   Serial.print(',');
@@ -415,10 +418,7 @@ bool restoreFromSettings(bool loadEeprom) {
 #endif
   
   FastLED.setBrightness(settings.brightness);
-  if ((settings.mode == 'C' || settings.mode == 'R') &&
-      settings.c1 >= 128) {
-    runRandom(true);
-  } else if (settings.mode == 'C') {
+  if (settings.mode == 'C') {
     fill_solid(leds, NUM_LEDS, CHSV(settings.hue, settings.saturation, 255));
   } else if (settings.mode == 'R') {
     byte delta = settings.saturation >> 4;
@@ -429,6 +429,8 @@ bool restoreFromSettings(bool loadEeprom) {
     fill_rainbow(leds, NUM_LEDS, settings.hue, delta);
   } else if (settings.mode == 'M') {
     runMovement(true);
+  } else if (settings.mode == 'Z') {
+    runRandom(true);
   } else if (settings.mode == 'P') {
     runPixels(true);
   } else if (settings.mode == 'B') {
@@ -438,19 +440,20 @@ bool restoreFromSettings(bool loadEeprom) {
     runText(true);
 #endif
   } else {
+#if DEBUG
     Serial.print(F("Unknown mode: "));
     Serial.println(settings.mode);
+#endif
     return false;
   }
   return true;
 }
 
 void runMode() {
-  if ((settings.mode == 'C' || settings.mode == 'R') &&
-      settings.c1 >= 128) {
-    runRandom(false);
-  } else if (settings.mode == 'M') {
+  if (settings.mode == 'M') {
     runMovement(false);
+  } else if (settings.mode == 'Z') {
+    runRandom(false);
   } else if (settings.mode == 'P') {
     runPixels(false);
   } else if (settings.mode == 'B') {
@@ -633,39 +636,26 @@ void runBlobs(bool initialize) {
   }
 }
 
-#define DOT_SPEED 1
-#define HUE_VAR 15
-#define SAT_VAR 10
-#define BRIGHT_VAR 80
-void oneRandom(byte x, byte y) {
-  setAt(x, y, CHSV(
-    random(settings.hue - HUE_VAR, settings.hue + HUE_VAR),
-    random(max(settings.saturation - SAT_VAR, 0), min(settings.saturation + SAT_VAR, 255)),
-    random(255 - BRIGHT_VAR, 256)));  
+void oneRandom(byte i) {
+  bool rainbow = settings.c1 > 100;
+  byte _size = mapRange(settings.c2 > 100 ? settings.c2 - 101 : settings.c2, 0, 100, 0, 255);
+  leds[i] = CHSV(
+    rainbow ?
+      settings.hue + random8(_size) :
+      settings.hue,
+    rainbow ? 255 : 255 - random8(_size) / 2,
+    rainbow ? 255 : 255 - random8(255 - _size));  
 }
 void runRandom(bool initialize) {
-  static long frameTarget;
   if (initialize) {
-    frameTarget = 0;
-    for (byte x = 0; x < WIDTH; x++) {
-      for (byte y = 0; y < HEIGHT; y++) {
-        if (!isImaginary(x, y)) {
-          oneRandom(x, y);
-        }
-      }
+    for (byte i = 0; i < NUM_LEDS; i++) {
+      oneRandom(i);
     }
   }
-  if (true) {
-    byte x;
-    byte y;
-    do {
-      x = random(WIDTH);
-      y = random(HEIGHT);
-    } while (isImaginary(x, y));
-    if (millis() > frameTarget) {
-      oneRandom(x, y);
-      frameTarget = millis() + DOT_SPEED;
-    }
+  byte numRand = mapRange(settings.c1 > 100 ? settings.c1 - 101 : settings.c1,
+                          0, 100, 1, NUM_LEDS);
+  for (int i = 0; i < numRand; i++) {
+    oneRandom(random8(NUM_LEDS));
   }
 }
 
