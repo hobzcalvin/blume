@@ -1,8 +1,3 @@
-
-
-#include <EEPROM.h>
-#include <FastLED.h>
-
 // These settings change per project!
 #define NUM_LEDS    72
 #define BASE_WID  12
@@ -27,43 +22,125 @@
 // BLUME VIVE: 47/6/true/false
 // BLUME SCARF: 120/40/false/true
 // BLUME DUBIOUS: 60/6/true/false
-// BLUME FEATHER: 72/12/false/false
+// BLUME FEATHER: 72/12/false/false/textmode=true
+// NIC'S BLUME: 40/6/true/false/false
 
 #define DEBUG false
 
 // Only change these settings if you're wired to different pins, using a non-APA102 chipset,
 // using a different COLOR_ORDER for RGB, etc.
+#ifdef ESP32
+// No standard pins for ESP32 yet; I'm using these at the moment.
+#define DATA_PIN_0    12
+#define DATA_PIN_1    14
+#define CLOCK_PIN_0   13
+#define CLOCK_PIN_1   15
+#else
 #define DATA_PIN_0    A0
 #define DATA_PIN_1    A1
 #define CLOCK_PIN_0   5
 #define CLOCK_PIN_1   4
+#endif
 #define COLOR_ORDER BGR
 #define CHIPSET     APA102
-#define APA_MHZ 4
-#define LED_SETTINGS_0 CHIPSET, DATA_PIN_0, CLOCK_PIN_0, COLOR_ORDER, DATA_RATE_MHZ(APA_MHZ)
-#define LED_SETTINGS_1 CHIPSET, DATA_PIN_1, CLOCK_PIN_1, COLOR_ORDER, DATA_RATE_MHZ(APA_MHZ)
+#define APA_MHZ 40
 /* For LPD8806:
 #define COLOR_ORDER BRG
 #define CHIPSET     LPD8806
-#define LED_SETTINGS_0 CHIPSET, CLOCK_PIN_0, DATA_PIN_0, COLOR_ORDER
-#define LED_SETTINGS_1 CHIPSET, CLOCK_PIN_1, DATA_PIN_0, COLOR_ORDER
  */
 
+// These are used by ESP32_OTA and ESP32_OPC support.
+#define WIFI_SSID "Your Wifi Network"
+#define WIFI_PASSWORD "yourpassword"
 
 // EVERYTHING BELOW HERE WON'T CHANGE FOR A NORMAL PROJECT.
+
+
+#ifdef ESP32
+// All of these are needed for Bluetooth functionality.
+#include <BLEDevice.h>
+#include <BLEDeviceID.h>
+#include <BLESerial.h>
+#include <BLEServer.h>
+// FastLED seems to need this.
+#define FASTLED_FORCE_SOFTWARE_PINS
+// Over-the-air updates can be turned on or off.
+//#define ESP32_OTA
+// Open Pixel Control support can be turned on or off.
+//#define ESP32_OPC
+// Something small and reasonable.
+#define EEPROM_SIZE 64
+// This varies by ESP32 dev board.
+#define LED_PIN 2
+#endif // ESP32
+
+#ifdef ESP32_OTA
+#include <WiFi.h>
+#include <ESPmDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
+#endif // ESP32_OTA
+
+#ifdef ESP32_OPC
+
+#if DEBUG
+#define OPC_SERV_INFO 1
+#define OPC_SERV_PERF 1
+#define OPC_SERV_DEBUG 1
+#endif // DEBUG
+
+#include <WiFi.h>
+#include "Opc.h"
+#include "OpcServer.h"
+
+#define OPC_PORT 7890
+#define OPC_CHANNEL 1
+#define OPC_MAX_CLIENTS 1
+#define OPC_MAX_PIXELS NUM_LEDS
+#define OPC_BUFFER_SIZE (OPC_MAX_PIXELS * 3 + OPC_HEADER_BYTES)
+#define OPC_DISPLAY_TIMEOUT 5000
+
+WiFiServer opcWifiServer = WiFiServer(OPC_PORT);
+OpcClient opcClients[OPC_MAX_CLIENTS];
+uint8_t buffer[OPC_BUFFER_SIZE * OPC_MAX_CLIENTS];
+OpcServer opcServer = OpcServer(
+    opcWifiServer, OPC_CHANNEL,opcClients, OPC_MAX_CLIENTS, buffer,
+    OPC_BUFFER_SIZE);
+long lastOpc = 0;
+uint16_t opcCount = 0;
+
+#endif // ESP32_OPC
+
+
 
 #if TEXTMODE
 // Include this here because it uses keywords we #define below like "WIDTH" and "HEIGHT"
 #include "Adafruit_GFX.h"
-#endif
+#endif // TEXTMODE
+
+
+#include <EEPROM.h>
+// Must come after FASTLED_FORCE_SOFTWARE_PINS above
+#include <FastLED.h>
 
 
 #define EEPROM_SAVE_TIMEOUT_MS 5000
 #define EEPROM_START_POINTER_ADDR 0x0
 
+#if (CHIPSET == APA102)
+#define LED_SETTINGS_0 CHIPSET, DATA_PIN_0, CLOCK_PIN_0, COLOR_ORDER, DATA_RATE_MHZ(APA_MHZ)
+#define LED_SETTINGS_1 CHIPSET, DATA_PIN_1, CLOCK_PIN_1, COLOR_ORDER, DATA_RATE_MHZ(APA_MHZ)
+#else
+#define LED_SETTINGS_0 CHIPSET, CLOCK_PIN_0, DATA_PIN_0, COLOR_ORDER
+#define LED_SETTINGS_1 CHIPSET, CLOCK_PIN_1, DATA_PIN_0, COLOR_ORDER
+#endif
+
 CRGB leds[NUM_LEDS];
+// ESP32 can run insanely fast; make this non-insane.
+#define MAX_FPS 120
 
 // Calculate max number of frames we can store in SRAM
+// TODO: Wrong for ESP32
 #define SRAM_SIZE 2048
 // Assume we need this much for everything else
 #define VAR_ALLOWANCE (NUM_LEDS * 3 + 850)
@@ -143,45 +220,158 @@ void runText(bool initialize) {
     pos = WIDTH;
   }
 }
-#endif
+#endif // TEXTMODE
+
+#ifdef ESP32
+// These aren't defined out of the box??
+#define min(x,y) ((x) <= (y) ? (x) : (y))
+#define max(x,y) ((x) >= (y) ? (x) : (y))
+BLESerial bleSerial = BLESerial();
+#define STREAM bleSerial
+#else
+#define STREAM Serial
+#endif // ESP32
+
 
 void setup() {
   // Initialize serial connection to bluetooth chip
   Serial.begin(115200);
   // Only wait 500ms for new data before giving up on a command
   Serial.setTimeout(500);
+
+#ifdef ESP32
+  BLEDevice::init("Blume ESP");
+  BLEServer* server = BLEDevice::createServer();
+  bleSerial.begin(server, BLEUUID((uint16_t)0xDFB0), BLEUUID((uint16_t)0xDFB1));
+  BLEDeviceID* did = new BLEDeviceID(
+    server,
+    "0x0BB9FD999969D238",
+    "DF Bluno",
+    "0123456789",
+    "FW V1.97",
+    "HW V1.7",
+    "SW V1.97",
+    "DFRobot",
+    "",
+    1,
+    0x0010,
+    0x0D00,
+    0);
+  did->start();
+  server->getAdvertising()->start();
+  STREAM.setTimeout(500);
+#endif // ESP32
   
+#if defined(ESP32_OTA) || defined(ESP32_OPC)
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
+    Serial.println("Connection Failed! Rebooting...");
+    delay(5000);
+    ESP.restart();
+  }
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+#endif // ESP32_OTA || ESP32_OPC
+
+#ifdef ESP32_OTA
+  // Port defaults to 3232
+  // ArduinoOTA.setPort(3232);
+
+  // Hostname defaults to esp3232-[MAC]
+  // ArduinoOTA.setHostname("myesp32");
+
+  // No authentication by default
+  // ArduinoOTA.setPassword("admin");
+
+  // Password can be set with it's md5 value as well
+  // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
+  // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+
+  ArduinoOTA.onStart([]() {
+    String type;
+    if (ArduinoOTA.getCommand() == U_FLASH)
+      type = "sketch";
+    else // U_SPIFFS
+      type = "filesystem";
+
+    // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+    Serial.println("Start updating " + type);
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+  });
+  ArduinoOTA.begin();
+#endif // ESP32_OTA
+
+#ifdef ESP32_OPC
+  opcServer.setMsgReceivedCallback(cbOpcMessage);
+  opcServer.setClientConnectedCallback(cbOpcClientConnected);
+  opcServer.setClientDisconnectedCallback(cbOpcClientDisconnected);
+  opcServer.begin();
+#endif
+    
   pinMode(DATA_PIN_0, OUTPUT);
   pinMode(CLOCK_PIN_0, OUTPUT);
   pinMode(DATA_PIN_1, OUTPUT);
   pinMode(CLOCK_PIN_1, OUTPUT);
   FastLED.addLeds<LED_SETTINGS_0>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
   FastLED.addLeds<LED_SETTINGS_1>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
-  FastLED.setDither(BINARY_DITHER);
+  FastLED.setDither(DISABLE_DITHER);
   // Turn everything off at first to avoid buggy lingering data on the chips
   FastLED.setBrightness(0);
   FastLED.show();
 
 #if DEBUG
-  FastLED.setBrightness(3);
+#ifdef LED_PIN
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, HIGH);
+#endif
+  FastLED.setBrightness(7);
   fill_solid(leds, NUM_LEDS, 0xFF0000);
   FastLED.delay(500);
-  Serial.print(F("Width: "));
+  Serial.print(F("\aWidth: "));
   Serial.println(WIDTH);
   fill_solid(leds, NUM_LEDS, 0x00FF00);
+#ifdef LED_PIN
+  digitalWrite(LED_PIN, LOW);
+#endif
   FastLED.delay(500);
-  Serial.print(F("Height: "));
+  Serial.print(F("\aHeight: "));
   Serial.println(HEIGHT);
   fill_solid(leds, NUM_LEDS, 0x0000FF);
+#ifdef LED_PIN
+  digitalWrite(LED_PIN, HIGH);
+#endif
   FastLED.delay(500);
-  Serial.print(F("Number of LEDs: "));
+  Serial.print(F("\aNumber of LEDs: "));
   Serial.println(NUM_LEDS);
   fill_solid(leds, NUM_LEDS, 0x000000);
+#ifdef LED_PIN
+  digitalWrite(LED_PIN, LOW);
+#endif
   FastLED.delay(500);
 #endif
 
+#ifdef ESP32
+  EEPROM.begin(EEPROM_SIZE);
+#endif
   // Should be first time only: Write a valid eepromStart address
-  EEPROM.put(EEPROM_START_POINTER_ADDR, 0x2);
+  EEPROM.put(EEPROM_START_POINTER_ADDR, (int)0x4);
+#ifdef ESP32
+  EEPROM.commit();
+#endif
   // Initialize eepromStart: the address where we start writing our settings.
   EEPROM.get(EEPROM_START_POINTER_ADDR, eepromStart);
   // Re-apply saved settings
@@ -192,29 +382,56 @@ void setup() {
   lastFrameTime = millis();
 }
 
+
 void doFPS() {
 // This is a no-op when DEBUG=false
 #if DEBUG
-  static byte totalLoops = 0;
+  static int totalLoops = 0;
   static long totalDurations = 0;
   totalDurations += lastFrameDuration;
   totalLoops++;
-  if (totalLoops == 500) {
-    Serial.print(F("FPS: "));
-    Serial.println((float)totalLoops / (float)totalDurations * 1000.0);
+  if (totalLoops == 700) {
+    Serial.print(millis());
+    Serial.print(F(" FPS: "));
+    Serial.print((float)totalLoops / (float)totalDurations * 1000.0);
+#ifdef ESP32_OPC
+    Serial.print(" OPCPS: ");
+    Serial.print((float)opcCount / (float)totalDurations * 1000.0);
+    opcCount = 0;
+#endif
+    Serial.println();
     totalLoops = 0;
     totalDurations = 0;
   }
 #endif
 }
+
+
+
 void loop() {
   lastFrameDuration = millis() - lastFrameTime;
-  runMode();
-  lastFrameTime = millis();
-  FastLED.show();
+  lastFrameTime += lastFrameDuration;
+#ifdef ESP32_OPC
+  if (!lastOpc || lastOpc < millis() - OPC_DISPLAY_TIMEOUT) {
+#else
+  if (true) {
+#endif
+    runMode();
+  }
   checkSerial();
   checkSave();
   doFPS();
+#ifdef ESP32_OTA
+  ArduinoOTA.handle();
+#endif
+#ifdef ESP32_OPC
+  opcServer.process();
+#endif
+  do {
+    // show() at least once,
+    FastLED.show();
+    // and until it's been at least the minimum frame duration.
+  } while (millis() < lastFrameTime + 1000 / MAX_FPS);
 }
 
 inline bool isImaginary(byte x, byte y) {
@@ -278,34 +495,47 @@ void fillCol(byte col, CRGB color) {
 
 void sendSeparately(byte* buf, int len) {
   // Flush any existing sending,
-  Serial.flush();
+  STREAM.flush();
   // wait a while for that to go through,
   delay(100);
   // and send what should be a new blob.
-  Serial.write(buf, len);
+  STREAM.write(buf, len);
+}
+
+void flushSerialIn() {
+  while (STREAM.available() > 0) {
+    STREAM.read();
+  }
 }
 
 void checkSerial() {
   // No serial to consume; stop.
-  if (!Serial.available()) {
+  if (!STREAM.available()) {
     return;
   }
-  if (!Serial.find("!")) {
+  if (!STREAM.find("!")) {
+#if DEBUG    
     Serial.println(F("no !"));
+#endif
+    flushSerialIn();
     return;
   }
   //Serial.println("found !");
   byte len;
-  if (!Serial.readBytes(&len, 1)) {
+  if (!STREAM.readBytes(&len, 1)) {
+#if DEBUG
     Serial.println(F("no len"));
+#endif
+    flushSerialIn();
   }
-  //Serial.print(F("len="));
-  //Serial.println(len);
   if (!len) {
     // Special case: no length means primary is asking a question.
     byte question;
-    if (!Serial.readBytes(&question, 1)) {
+    if (!STREAM.readBytes(&question, 1)) {
+#if DEBUG
       Serial.println(F("no question"));
+#endif
+      flushSerialIn();
     } else {
       if (question == 'D') {
         // Send dimensions.
@@ -323,8 +553,11 @@ void checkSerial() {
   }
 
   SavedSettings previous = settings;
-  if (!Serial.readBytes((byte*)&settings, min(sizeof(settings), len))) {
+  if (!STREAM.readBytes((byte*)&settings, min(sizeof(settings), len))) {
+#if DEBUG
     Serial.println(F("failed to read len bytes"));
+#endif
+    flushSerialIn();
     settings = previous;
     return;
   }
@@ -332,10 +565,13 @@ void checkSerial() {
     // hue means number of frames in this case
     settings.hue = min(settings.hue, MAX_FRAMES);
     if (settings.hue) {
-      if (!Serial.readBytes(ledFrames, settings.hue * NUM_LEDS)) {
+      if (!STREAM.readBytes(ledFrames, settings.hue * NUM_LEDS)) {
+#if DEBUG
         Serial.print(F("failed to read "));
         Serial.print(settings.hue);
         Serial.println(F(" image frames"));
+#endif
+        flushSerialIn();
         settings = previous;
       }
     } else if (previous.mode == 'P') {
@@ -353,7 +589,7 @@ void checkSerial() {
   } else if (settings.mode == 'T') {
     // Read up to the full length of text, or until a null terminator.
     // Less error handling here; we don't really care what we get.
-    byte bytesRead = Serial.readBytesUntil('\0', text, sizeof(text));
+    byte bytesRead = STREAM.readBytesUntil('\0', text, sizeof(text));
     if (bytesRead) {
       if (bytesRead < sizeof(text)) {
         for (byte i = bytesRead; i < sizeof(text); i++) {
@@ -384,6 +620,9 @@ void checkSave() {
     if (settings.mode == 'T') {
       EEPROM.put(eepromStart + sizeof(settings), text);
     }
+#endif
+#ifdef ESP32
+    EEPROM.commit();
 #endif
     saveTarget = 0;
 #if DEBUG
@@ -616,15 +855,16 @@ void runBlobs(bool initialize) {
   bool allowZero = WIDTH > 1 || HEIGHT > 1;
   for (byte c = RED; c <= BLUE; c++) {
     if (!steps[c]) {
-      xIncrement[c] = (float)(random(allowZero ? 0 : WIDTH * settings.hue / 2, WIDTH * settings.hue) + 100) / 10000.0;
-      yIncrement[c] = (float)(random(allowZero ? 0 : HEIGHT * settings.hue / 2, HEIGHT * settings.hue) + 100) / 10000.0;
+      xIncrement[c] = (float)(random(allowZero ? 0 : WIDTH * settings.hue / 2, WIDTH * settings.hue) + 100) / 50000.0;
+      yIncrement[c] = (float)(random(allowZero ? 0 : HEIGHT * settings.hue / 2, HEIGHT * settings.hue) + 100) / 50000.0;
       if (random(2)) {
         xIncrement[c] *= -1;
       }
       if (random(2)) {
         yIncrement[c] *= -1;
       }
-      steps[c] = random(10, 50);
+      // Steps should also scale with framerate; use lastFrameDuration as a guess
+      steps[c] = random(lastFrameDuration * 5, lastFrameDuration * 25);
     }
     xPos[c] += xIncrement[c] * lastFrameDuration;
     yPos[c] += yIncrement[c] * lastFrameDuration;
@@ -659,5 +899,29 @@ void runRandom(bool initialize) {
   }
 }
 
+#ifdef ESP32_OPC
+void cbOpcMessage(uint8_t channel, uint8_t command, uint16_t length, uint8_t* data) {
+  /*Serial.print("chn:");
+  Serial.print(channel);
+  Serial.print("cmd:");
+  Serial.print(command);
+  Serial.print("len:");
+  Serial.println(length);*/
+  memcpy(leds, data, min(length, sizeof(leds)));
+  lastOpc = millis();
+  opcCount++;
+  FastLED.setBrightness(15);
+}
 
+// Callback when a client is connected
+void cbOpcClientConnected(WiFiClient& client) {
+  Serial.print("New OPC Client: ");
+  Serial.println(client.remoteIP());
+}
 
+// Callback when a client is disconnected
+void cbOpcClientDisconnected(OpcClient& opcClient) {
+  Serial.print("Client Disconnected: ");
+  Serial.println(opcClient.ipAddress);
+}
+#endif
