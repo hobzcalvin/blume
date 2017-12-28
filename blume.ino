@@ -24,12 +24,14 @@
 // BLUME DUBIOUS: 60/6/true/false
 // BLUME FEATHER: 72/12/false/false/textmode=true
 // NIC'S BLUME: 40/6/true/false/false
+// BLUME DUBIOUS: 59/6/true/false/false
 
 #define DEBUG false
 
 // Only change these settings if you're wired to different pins, using a non-APA102 chipset,
 // using a different COLOR_ORDER for RGB, etc.
 #ifdef ESP32
+#define ESP32_OPC
 // No standard pins for ESP32 yet; I'm using these at the moment.
 #define DATA_PIN_0    12
 #define DATA_PIN_1    14
@@ -132,7 +134,7 @@ uint16_t opcCount = 0;
 #define LED_SETTINGS_1 CHIPSET, DATA_PIN_1, CLOCK_PIN_1, COLOR_ORDER, DATA_RATE_MHZ(APA_MHZ)
 #else
 #define LED_SETTINGS_0 CHIPSET, CLOCK_PIN_0, DATA_PIN_0, COLOR_ORDER
-#define LED_SETTINGS_1 CHIPSET, CLOCK_PIN_1, DATA_PIN_0, COLOR_ORDER
+#define LED_SETTINGS_1 CHIPSET, CLOCK_PIN_1, DATA_PIN_1, COLOR_ORDER
 #endif
 
 CRGB leds[NUM_LEDS];
@@ -265,13 +267,12 @@ void setup() {
 #if defined(ESP32_OTA) || defined(ESP32_OPC)
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
-    Serial.println("Connection Failed! Rebooting...");
-    delay(5000);
-    ESP.restart();
+  /*while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
   }
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+  */
 #endif // ESP32_OTA || ESP32_OPC
 
 #ifdef ESP32_OTA
@@ -320,6 +321,7 @@ void setup() {
   opcServer.setClientConnectedCallback(cbOpcClientConnected);
   opcServer.setClientDisconnectedCallback(cbOpcClientDisconnected);
   opcServer.begin();
+  opcServer.mDNSBegin("Blume-ESP32-OPC");
 #endif
     
   pinMode(DATA_PIN_0, OUTPUT);
