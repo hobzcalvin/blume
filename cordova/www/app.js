@@ -7,6 +7,11 @@ if (window.cordova) {
   // foregrounded.
   document.addEventListener('deviceready', function() {
     window.codePush.sync();
+    window.codePush.getCurrentPackage(function(currentPackage) {
+      if (currentPackage) {
+        $('#codePushVersion').html(currentPackage.label);
+      }
+    });
     evothings.scriptsLoaded(app.initialize);
   });
   document.addEventListener("resume", function() {
