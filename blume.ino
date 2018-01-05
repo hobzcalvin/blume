@@ -842,6 +842,10 @@ void runBlobs(bool initialize) {
         continue;
       }
       for (byte c = RED; c <= BLUE; c++) {
+        if (size[c] == 0) {
+          color[c] = 0;
+          continue;
+        }
         float xDist = distance(x, xPos[c], WIDTH);
         float yDist = distance(y, yPos[c], HEIGHT);
         float dist = sqrt(xDist * xDist + yDist * yDist);
@@ -886,8 +890,8 @@ void oneRandom(uint16_t i) {
     rainbow ?
       settings.hue + random8(_size) :
       settings.hue,
-    rainbow ? 255 : 255 - random8(_size) / 2,
-    rainbow ? 255 : 255 - random8(255 - _size));  
+    rainbow ? settings.saturation : max(settings.saturation, random8()),
+    rainbow ? 255 - random8(255 - settings.saturation) : 255 - random8(255 - _size));  
 }
 void runRandom(bool initialize) {
   if (initialize) {
