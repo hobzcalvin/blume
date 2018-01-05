@@ -25,6 +25,7 @@
 // BLUME FEATHER: 72/12/false/false/textmode=true
 // NIC'S BLUME: 40/6/true/false/false
 // BLUME DUBIOUS: 59/6/true/false/false
+// BLUME BEACON: 40/6/true/false/false
 
 #define DEBUG false
 
@@ -174,7 +175,7 @@ byte ledFrames[NUM_LEDS * MAX_FRAMES];
 
 #if TEXTMODE
 #include "Picopixel.h"
-void setAt(byte x, byte y, CRGB color);
+void setAt(uint16_t x, uint16_t y, CRGB color);
 class BlumeGFX : public Adafruit_GFX {
   public:
     BlumeGFX(int16_t w, int16_t h);
@@ -436,31 +437,31 @@ void loop() {
   } while (millis() < lastFrameTime + 1000 / MAX_FPS);
 }
 
-inline bool isImaginary(byte x, byte y) {
+inline bool isImaginary(uint16_t x, uint16_t y) {
   return x >= WIDTH || y >= HEIGHT || (
     STAGGERED && (x % 2 != y % 2));
 }
-void setAt(byte x, byte y, CRGB color) {
+void setAt(uint16_t x, uint16_t y, CRGB color) {
   if (STAGGERED) {
     if (isImaginary(x, y)) {
       return;
     }
-    byte idx = x / 2 + (x % 2) * (BASE_WID + 1) + WIDTH * (y / 2);
+    uint16_t idx = x / 2 + (x % 2) * (BASE_WID + 1) + WIDTH * (y / 2);
     if (idx >= NUM_LEDS) {
       return;
     }
     leds[idx] = color;
   } else {
-    byte idx = ((ZIGZAG && y % 2) ? (WIDTH - 1 - x) : x) + y * WIDTH;
+    uint16_t idx = ((ZIGZAG && y % 2) ? (WIDTH - 1 - x) : x) + y * WIDTH;
     if (idx < NUM_LEDS) {
       leds[idx] = color;
     }
   }
 }
-void fillRow(byte row, CRGB color) {
+void fillRow(uint16_t row, CRGB color) {
   if (STAGGERED) {
-    byte start = row * WIDTH / 2;
-    byte num = WIDTH / 2;
+    uint16_t start = row * WIDTH / 2;
+    uint16_t num = WIDTH / 2;
     if (row % 2) {
       start += 1;
     } else {
@@ -471,25 +472,25 @@ void fillRow(byte row, CRGB color) {
     }
     fill_solid(leds + start, num, color);
   } else {
-    for (byte j = 0; j < WIDTH; j++) {
+    for (uint16_t j = 0; j < WIDTH; j++) {
       if (row * WIDTH + j < NUM_LEDS) {
         leds[row * WIDTH + j] = color; 
       }
     }
   }
 }
-void fillCol(byte col, CRGB color) {
+void fillCol(uint16_t col, CRGB color) {
   if (ZIGZAG) {
-    for (byte i = 0; i < HEIGHT; i++) {
+    for (uint16_t i = 0; i < HEIGHT; i++) {
       setAt(col, i, color);
     }
   } else if (STAGGERED) {
-    for (byte i = col / 2 + (col % 2) * (BASE_WID + 1);
+    for (uint16_t i = col / 2 + (col % 2) * (BASE_WID + 1);
          i < NUM_LEDS; i += WIDTH) {
       leds[i] = color;
     }
   } else {
-    for (byte j = col; j < NUM_LEDS; j+= WIDTH) {
+    for (uint16_t j = col; j < NUM_LEDS; j+= WIDTH) {
       leds[j] = color;
     }
   }
@@ -752,7 +753,7 @@ void runMovement(bool initialize) {
     position -= dimension;
   }
   // Draw the current situation.
-  for (byte i = 0; i < dimension; i++) {
+  for (uint16_t i = 0; i < dimension; i++) {
     float distance = min(
       abs(float(i) - position),
       (i < dimension / 2) ?
@@ -790,7 +791,7 @@ void runPixels(bool initialize) {
     frame = 0;
   }
   if (initialize || micros() >= target_us) {
-    for (byte i = 0; i < NUM_LEDS; i++) {
+    for (uint16_t i = 0; i < NUM_LEDS; i++) {
       byte color = ledFrames[frame * NUM_LEDS + i];
       leds[i] = CRGB(
         ((color & 0b11100000) >> 5) * 36,
@@ -835,8 +836,8 @@ void runBlobs(bool initialize) {
 
   CRGB color;
   // Render the spots.
-  for (byte x = 0; x < WIDTH; x++) {
-    for (byte y = 0; y < HEIGHT; y++) {
+  for (uint16_t x = 0; x < WIDTH; x++) {
+    for (uint16_t y = 0; y < HEIGHT; y++) {
       if (isImaginary(x, y)) {
         continue;
       }
@@ -878,7 +879,7 @@ void runBlobs(bool initialize) {
   }
 }
 
-void oneRandom(byte i) {
+void oneRandom(uint16_t i) {
   bool rainbow = settings.c1 > 100;
   byte _size = mapRange(settings.c2 > 100 ? settings.c2 - 101 : settings.c2, 0, 100, 0, 255);
   leds[i] = CHSV(
@@ -890,14 +891,14 @@ void oneRandom(byte i) {
 }
 void runRandom(bool initialize) {
   if (initialize) {
-    for (byte i = 0; i < NUM_LEDS; i++) {
+    for (uint16_t i = 0; i < NUM_LEDS; i++) {
       oneRandom(i);
     }
   }
-  byte numRand = mapRange(settings.c1 > 100 ? settings.c1 - 101 : settings.c1,
+  uint16_t numRand = mapRange(settings.c1 > 100 ? settings.c1 - 101 : settings.c1,
                           0, 100, 1, NUM_LEDS);
-  for (int i = 0; i < numRand; i++) {
-    oneRandom(random8(NUM_LEDS));
+  for (uint16_t i = 0; i < numRand; i++) {
+    oneRandom(random16(NUM_LEDS));
   }
 }
 
