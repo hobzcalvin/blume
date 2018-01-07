@@ -6,7 +6,12 @@
 // Wiring is in a zig-zag pattern.
 #define ZIGZAG   false
 // Support text mode; currently 6-pixel height only.
-#define TEXTMODE true
+#define TEXTMODE false
+// Rotary encoder with button control.
+/*#define ENCODER true
+#define ENC_P1 22
+#define ENC_P2 23
+#define ENC_SW 21*/
 // POI: 18/1/false/false
 // STAFF: 50/1/false/false
 // CUCUMBER: 104/6/true/false
@@ -26,6 +31,7 @@
 // NIC'S BLUME: 40/6/true/false/false
 // BLUME DUBIOUS: 59/6/true/false/false
 // BLUME BEACON: 40/6/true/false/false
+// BLUME LIVING: 298?/1/false/false/false/true:22,23,sw=21 (APA_MHZ=1)
 
 #define DEBUG false
 
@@ -172,6 +178,61 @@ SavedSettings settings;
 // Stored frames of POV/light-painting image, used by mode 'P'
 // Each pixel is in 8-bit RRRGGGBB format
 byte ledFrames[NUM_LEDS * MAX_FRAMES];
+
+#if ENCODER
+#include <Encoder.h>
+Encoder encoder(ENC_P1, ENC_P2);
+// Is the encoder's swith currently pressed?
+volatile bool encoderPressed = false;
+// true when the main run loop should restoreSettings().
+// We can't call it directly; it crashes, probably due to
+// concurrency issues.
+volatile bool encoderNewSettingsPending = false;
+// Used when switch was pressed to turn on.
+volatile bool encoderClickDisabled = false;
+// Has the encoder knob moved during the current press?
+volatile bool encoderMovedDuringPress = false;
+// millis() when the encoder switch was pressed
+volatile long encoderPressTime = 0;
+// settings.brightness when the encoder switch was pressed
+volatile byte encoderPressInitialBrightness = 255;
+// Un-pressed encoder position
+volatile int32_t encoderPrimary = 0;
+// Pressed encoder position
+volatile int32_t encoderSecondary = 0;
+// Last raw encoder value, regardless of press state
+volatile int32_t lastEncoder = 0;
+portMUX_TYPE encoderMux = portMUX_INITIALIZER_UNLOCKED;
+#define ENCODER_DEBOUNCE_MS 100
+// How many milliseconds before a pending click becomes a
+// long-held press to change brightness
+#define ENCODER_LONG_PRESS 1000
+// After ENCODER_LONG_PRESS milliseconds, this additional time
+// reduces brightess by one level.
+#define ENCODER_MS_PER_BRIGHTNESS 10
+SavedSettings encoderModes[] = {
+  // Standard color mode with a warm yellow
+  { 255, 'C', 60, 255, 0, 0 },
+  // Small slow blobs
+  { 255, 'B', 14, 45, 45, 45 },
+  // Fire
+  { 255, 'Z', 16, 255, 139, 118 },
+  // Blue blobs
+  { 255, 'B', 38, 147, 43, 255 },
+  // Pulsing red
+  { 255, 'M', 0, 255, 47, 149 },
+  // Twinkle
+  { 255, 'Z', 0, 0, 124, 154 },
+  // Chasing blue
+  { 255, 'M', 168, 255, 51, 98 },
+  // Noise
+  { 255, 'Z', 0, 255, 201, 201 },
+  // Chasing rainbow
+  { 255, 'M', 168, 255, 149, 100 }
+};
+byte nextEncoderMode = 0;
+#endif // ENCODER
+
 
 #if TEXTMODE
 #include "Picopixel.h"
@@ -322,8 +383,15 @@ void setup() {
   opcServer.setClientConnectedCallback(cbOpcClientConnected);
   opcServer.setClientDisconnectedCallback(cbOpcClientDisconnected);
   opcServer.begin();
-  opcServer.mDNSBegin("Blume-ESP32-OPC");
+  opcServer.mDNSBegin("blume");
 #endif
+
+#if ENCODER
+  pinMode(ENC_SW, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(ENC_SW), encoderSwitchHandler, CHANGE);
+  // Make sure we're in sync with current switch state.
+  encoderSwitchHandler();
+#endif // ENCODER
     
   pinMode(DATA_PIN_0, OUTPUT);
   pinMode(CLOCK_PIN_0, OUTPUT);
@@ -414,6 +482,12 @@ void doFPS() {
 void loop() {
   lastFrameDuration = millis() - lastFrameTime;
   lastFrameTime += lastFrameDuration;
+#if ENCODER
+  if (encoderNewSettingsPending) {
+    encoderNewSettingsPending = false;
+    restoreFromSettings(false);
+  }
+#endif
 #ifdef ESP32_OPC
   if (!lastOpc || lastOpc < millis() - OPC_DISPLAY_TIMEOUT) {
 #else
@@ -430,6 +504,11 @@ void loop() {
 #ifdef ESP32_OPC
   opcServer.process();
 #endif
+#if ENCODER
+  portENTER_CRITICAL(&encoderMux);
+  checkEncoder();
+  portEXIT_CRITICAL(&encoderMux);
+#endif // ENCODER
   do {
     // show() at least once,
     FastLED.show();
@@ -602,14 +681,8 @@ void checkSerial() {
     }
 #endif
   }
-
-  /*Serial.print(len);
-  Serial.print(F(" -> "));*/
   // We have new settings! Apply them.
-  if (restoreFromSettings(false)) {
-    // Plan to save this if we don't get any more data
-    saveTarget = millis() + EEPROM_SAVE_TIMEOUT_MS;
-  }
+  restoreFromSettings(false);
 }
 
 void checkSave() {
@@ -642,7 +715,7 @@ bool restoreFromSettings(bool loadEeprom) {
     if (settings.mode == 'T') {
       EEPROM.get(eepromStart + sizeof(settings), text);
     }
-#endif
+#endif // TEXTMODE
   }
 #if DEBUG
   Serial.print(F("settings: "));
@@ -658,6 +731,11 @@ bool restoreFromSettings(bool loadEeprom) {
   Serial.print(',');
   Serial.println(settings.c2);
 #endif
+#if ENCODER
+  // New mode: reset encoder values.
+  encoderPrimary = 0;
+  encoderSecondary = 0;
+#endif // ENCODER
   
   FastLED.setBrightness(settings.brightness);
   if (settings.mode == 'C') {
@@ -686,12 +764,15 @@ bool restoreFromSettings(bool loadEeprom) {
     Serial.print(F("Unknown mode: "));
     Serial.println(settings.mode);
 #endif
-    return false;
   }
-  return true;
+  if (!loadEeprom) {
+    // Plan to save this if we don't get any more data
+    saveTarget = millis() + EEPROM_SAVE_TIMEOUT_MS;
+  }
 }
 
 void runMode() {
+  FastLED.setBrightness(settings.brightness);
   if (settings.mode == 'M') {
     runMovement(false);
   } else if (settings.mode == 'Z') {
@@ -761,7 +842,8 @@ void runMovement(bool initialize) {
         abs(float(i) - position - dimension));
     CRGB color;
     if (rainbow) {
-      color = CHSV(int(float(settings.hue) + distance * size) % 256, settings.saturation, 255);
+      color = CHSV(int(float(settings.hue) + distance * size) % 256,
+                   settings.saturation, 255);
     } else {
       byte value;
       float intensity = size / 2.0 - distance;
@@ -804,7 +886,8 @@ void runPixels(bool initialize) {
   }
 }
 
-// Positions should really be bytes, but we're about to do arithmetic with them that wants negative results.
+// Positions should really be uint16_ts,
+// but we're about to do arithmetic with them that wants negative results.
 float distance(float pos1, float pos2, float dimensionSize) {
   float distance = abs(pos1 - pos2);
   while (distance > dimensionSize) distance -= dimensionSize;
@@ -862,8 +945,10 @@ void runBlobs(bool initialize) {
   bool allowZero = WIDTH > 1 || HEIGHT > 1;
   for (byte c = RED; c <= BLUE; c++) {
     if (!steps[c]) {
-      xIncrement[c] = (float)(random(allowZero ? 0 : WIDTH * settings.hue / 2, WIDTH * settings.hue) + 100) / 50000.0;
-      yIncrement[c] = (float)(random(allowZero ? 0 : HEIGHT * settings.hue / 2, HEIGHT * settings.hue) + 100) / 50000.0;
+      xIncrement[c] = (float)(random(allowZero ? 0 : WIDTH * settings.hue / 2,
+                                     WIDTH * settings.hue) + 100) / 50000.0;
+      yIncrement[c] = (float)(random(allowZero ? 0 : HEIGHT * settings.hue / 2,
+                                     HEIGHT * settings.hue) + 100) / 50000.0;
       if (random(2)) {
         xIncrement[c] *= -1;
       }
@@ -885,7 +970,8 @@ void runBlobs(bool initialize) {
 
 void oneRandom(uint16_t i) {
   bool rainbow = settings.c1 > 100;
-  byte _size = mapRange(settings.c2 > 100 ? settings.c2 - 101 : settings.c2, 0, 100, 0, 255);
+  byte _size = mapRange(settings.c2 > 100 ? settings.c2 - 101 :
+                        settings.c2, 0, 100, 0, 255);
   leds[i] = CHSV(
     rainbow ?
       settings.hue + random8(_size) :
@@ -908,16 +994,11 @@ void runRandom(bool initialize) {
 
 #ifdef ESP32_OPC
 void cbOpcMessage(uint8_t channel, uint8_t command, uint16_t length, uint8_t* data) {
-  /*Serial.print("chn:");
-  Serial.print(channel);
-  Serial.print("cmd:");
-  Serial.print(command);
-  Serial.print("len:");
-  Serial.println(length);*/
   memcpy(leds, data, min(length, sizeof(leds)));
   lastOpc = millis();
   opcCount++;
-  FastLED.setBrightness(15);
+  // Maximize brightness; pixel data knows no brightness level
+  FastLED.setBrightness(255);
 }
 
 // Callback when a client is connected
@@ -932,3 +1013,97 @@ void cbOpcClientDisconnected(OpcClient& opcClient) {
   Serial.println(opcClient.ipAddress);
 }
 #endif
+
+#if ENCODER
+void checkEncoder() {
+  // Get "raw" encoder value
+  int32_t val = encoder.read();
+  // First, check if we're in a long press, which overrides any
+  // encoder movement.
+  if (encoderPressed &&
+      !encoderMovedDuringPress &&
+      millis() > encoderPressTime + ENCODER_LONG_PRESS) {
+    // We're in the middle of a long press; reduce brightness accordingly.
+    settings.brightness = max(
+      0,
+      (int)encoderPressInitialBrightness -
+        (int)(millis() - encoderPressTime - ENCODER_LONG_PRESS) /
+        ENCODER_MS_PER_BRIGHTNESS);
+#if DEBUG
+  Serial.print("NewBright! ");
+  Serial.print(encoderPressInitialBrightness);
+  Serial.print(" => ");
+  Serial.print(settings.brightness);
+  Serial.print("   ");
+  Serial.print(millis());
+  Serial.print(',');
+  Serial.println(encoderPressTime);
+#endif
+  // We're not in a long press; did the encoder move?
+  } else if (val != lastEncoder) {
+    // If brightness is zero, probably due to a long press,
+    // turn back on given this new interaction.
+    if (settings.brightness == 0) {
+      settings.brightness = 255;
+    }
+    if (encoderPressed) {
+      encoderMovedDuringPress = true;
+      encoderSecondary += val - lastEncoder;
+      settings.saturation += val - lastEncoder;
+    } else {
+      encoderPrimary += val - lastEncoder;
+      settings.hue += val - lastEncoder;
+    }
+    encoderNewSettingsPending = true;
+    lastEncoder = val;
+#if DEBUG
+    Serial.print("Encoder change: ");
+    Serial.print(encoderPrimary);
+    Serial.print(',');
+    Serial.print(encoderSecondary);
+    Serial.print(',');
+    Serial.println(encoderPressed);
+#endif
+  }
+}
+void encoderSwitchHandler() {
+  portENTER_CRITICAL_ISR(&encoderMux);
+#if DEBUG
+  Serial.print("Switch! ");
+  Serial.println(!digitalRead(ENC_SW));
+#endif
+  if (!digitalRead(ENC_SW) != encoderPressed) {
+    encoderPressed = !encoderPressed;
+    long ms = millis();
+    if (encoderPressed) {
+      // If brightness is zero, probably due to a long press,
+      // turn back on given this new interaction.
+      if (settings.brightness == 0) {
+        settings.brightness = 255;
+        // Also, make sure this interaction will never register
+        // as a click, though it could register as other stuff.
+        encoderClickDisabled = true;
+      } else {
+        encoderClickDisabled = false;
+      }
+      encoderMovedDuringPress = false;
+      encoderPressTime = ms;
+      encoderPressInitialBrightness = settings.brightness;
+    } else if (!encoderMovedDuringPress &&
+               !encoderClickDisabled &&
+               ms > encoderPressTime + ENCODER_DEBOUNCE_MS &&
+               ms <= encoderPressTime + ENCODER_LONG_PRESS) {
+#if DEBUG
+      Serial.print("Click! New mode: ");
+      Serial.println(nextEncoderMode);
+#endif
+      settings = encoderModes[nextEncoderMode];
+      nextEncoderMode = (nextEncoderMode + 1) %
+        (sizeof(encoderModes) / sizeof(SavedSettings));
+      encoderNewSettingsPending = true;
+    }
+  }
+  checkEncoder();
+  portEXIT_CRITICAL_ISR(&encoderMux);
+}
+#endif // ENCODER
