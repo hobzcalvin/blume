@@ -1,39 +1,26 @@
 // These settings change per project!
-#define NUM_LEDS    72
-#define BASE_WID  12
+#define NUM_LEDS    256
+#define BASE_WID  16
 // If true, adds 1 to BASE_WID for every other row
 #define STAGGERED false
 // Wiring is in a zig-zag pattern.
 #define ZIGZAG   false
 // Support text mode; currently 6-pixel height only.
 #define TEXTMODE false
+// Set max milliamp draw limit, assuming standard 5-volt LEDs.
+#define MAX_MILLIAMPS 3000
 // Rotary encoder with button control.
 /*#define ENCODER true
 #define ENC_P1 22
 #define ENC_P2 23
 #define ENC_SW 21*/
-// POI: 18/1/false/false
-// STAFF: 50/1/false/false
-// CUCUMBER: 104/6/true/false
-// VICTORIA HAT: 28/16/false/false/Clock=2
-// CARO THING: 18/1/false/false
-// NEHA BULB: 76/6/true/false
-// STOPH: 20/1/false/false
-// NINA: 18/1/false/false
-// TREVOR: 75/6/true/false
-// LEIGH BIKE: 80/1/false/false
-// VICTORIA OTHER: 71/1/false/false
-// NINA OTHER: 56/1/false/false/Clock=2
-// BLUME VIVE: 47/6/true/false
-// BLUME SCARF: 120/40/false/true
-// BLUME DUBIOUS: 60/6/true/false
-// BLUME FEATHER: 72/12/false/false/textmode=true
-// NIC'S BLUME: 40/6/true/false/false
-// BLUME DUBIOUS: 59/6/true/false/false
-// BLUME BEACON: 40/6/true/false/false
-// BLUME LIVING: 298?/1/false/false/false/true:22,23,sw=21 (APA_MHZ=1)
 
-#define DEBUG false
+// Turn on R-G-B startup sequence, debug messages to serial console, etc.
+#define DEBUG true 
+
+// These are used by ESP32_OTA and ESP32_OPC support.
+#define WIFI_SSID "Your Wifi Network"
+#define WIFI_PASSWORD "yourpassword"
 
 // Only change these settings if you're wired to different pins, using a non-APA102 chipset,
 // using a different COLOR_ORDER for RGB, etc.
@@ -41,13 +28,16 @@
 #define ESP32_OPC
 // No standard pins for ESP32 yet; I'm using these at the moment.
 #define DATA_PIN_0    12
-#define DATA_PIN_1    14
 #define CLOCK_PIN_0   13
-#define CLOCK_PIN_1   15
+// A second set of pins get the same signal.
+// Useful when connecting multiple strips.
+// Here, use PIXO Pixel's defaults.
+#define DATA_PIN_1    19
+#define CLOCK_PIN_1   18
 #else
 #define DATA_PIN_0    A0
-#define DATA_PIN_1    A1
 #define CLOCK_PIN_0   5
+#define DATA_PIN_1    A1
 #define CLOCK_PIN_1   4
 #endif
 #define COLOR_ORDER BGR
@@ -58,11 +48,19 @@
 #define CHIPSET     LPD8806
  */
 
-// These are used by ESP32_OTA and ESP32_OPC support.
-#define WIFI_SSID "Your Wifi Network"
-#define WIFI_PASSWORD "yourpassword"
+
+
+
+
+
+
 
 // EVERYTHING BELOW HERE WON'T CHANGE FOR A NORMAL PROJECT.
+
+
+
+
+
 
 
 #ifdef ESP32
@@ -80,7 +78,7 @@
 // Something small and reasonable.
 #define EEPROM_SIZE 64
 // This varies by ESP32 dev board.
-#define LED_PIN 2
+#define LED_PIN LED_BUILTIN
 #endif // ESP32
 
 #ifdef ESP32_OTA
@@ -260,7 +258,7 @@ void BlumeGFX::drawPixel(int16_t x, int16_t y, uint16_t color) {
 BlumeGFX gfx = BlumeGFX(WIDTH, HEIGHT);
 
 // Max length 32
-char text[32] = "Hello World! I'm Grant.";
+char text[32] = "Hello World! I'm Blume. :-)";
 void runText(bool initialize) {
   // TODO: c1 = speed, or rainbow on?
   // TODO: c2 = rainbow size, or rainbow vertical?
@@ -298,10 +296,24 @@ BLESerial bleSerial = BLESerial();
 
 
 void setup() {
-  // Initialize serial connection to bluetooth chip
   Serial.begin(115200);
   // Only wait 500ms for new data before giving up on a command
   Serial.setTimeout(500);
+
+  // Initialize and turn off LEDs before any slower startup stuff.  
+  pinMode(DATA_PIN_0, OUTPUT);
+  pinMode(CLOCK_PIN_0, OUTPUT);
+  pinMode(DATA_PIN_1, OUTPUT);
+  pinMode(CLOCK_PIN_1, OUTPUT);
+  FastLED.addLeds<LED_SETTINGS_0>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_SETTINGS_1>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+  FastLED.setDither(DISABLE_DITHER);
+#if defined(MAX_MILLIAMPS) && MAX_MILLIAMPS
+  FastLED.setMaxPowerInVoltsAndMilliamps(5, MAX_MILLIAMPS);
+#endif
+  // Turn everything off at first to avoid buggy lingering data on the chips
+  FastLED.setBrightness(0);
+  FastLED.show();
 
 #ifdef ESP32
   BLEDevice::init("Blume ESP");
@@ -329,12 +341,6 @@ void setup() {
 #if defined(ESP32_OTA) || defined(ESP32_OPC)
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  /*while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-  }
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
-  */
 #endif // ESP32_OTA || ESP32_OPC
 
 #ifdef ESP32_OTA
@@ -392,17 +398,6 @@ void setup() {
   // Make sure we're in sync with current switch state.
   encoderSwitchHandler();
 #endif // ENCODER
-    
-  pinMode(DATA_PIN_0, OUTPUT);
-  pinMode(CLOCK_PIN_0, OUTPUT);
-  pinMode(DATA_PIN_1, OUTPUT);
-  pinMode(CLOCK_PIN_1, OUTPUT);
-  FastLED.addLeds<LED_SETTINGS_0>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
-  FastLED.addLeds<LED_SETTINGS_1>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
-  FastLED.setDither(DISABLE_DITHER);
-  // Turn everything off at first to avoid buggy lingering data on the chips
-  FastLED.setBrightness(0);
-  FastLED.show();
 
 #if DEBUG
 #ifdef LED_PIN
@@ -469,6 +464,8 @@ void doFPS() {
     Serial.print(" OPCPS: ");
     Serial.print((float)opcCount / (float)totalDurations * 1000.0);
     opcCount = 0;
+    Serial.print(" IP address: ");
+    Serial.print(WiFi.localIP());
 #endif
     Serial.println();
     totalLoops = 0;
