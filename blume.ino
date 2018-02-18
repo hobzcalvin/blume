@@ -5,6 +5,11 @@
 #define STAGGERED false
 // Wiring is in a zig-zag pattern.
 #define ZIGZAG   false
+// 0,0 should be the top-left pixel in a 2D arrangment.
+// If not, use these to move it to another corner of the display.
+#define FLIP_HORIZONTAL false
+// DotStar FeatherWing flips vertical.
+#define FLIP_VERTICAL false
 // Support text mode; currently 6-pixel height only.
 #define TEXTMODE false
 // Set max milliamp draw limit, assuming standard 5-volt LEDs.
@@ -147,11 +152,16 @@ CRGB leds[NUM_LEDS];
 #define MAX_FPS 120
 
 // Calculate max number of frames we can store in SRAM
-// TODO: Wrong for ESP32
+#ifdef ESP32
+// TODO: For now, only non-STAGGERED arragements are supported.
+// ESP32 SRAM is huge; carve out 4kB
+#define MAX_FRAMES (STAGGERED ? 0 : (4096 / NUM_LEDS))
+#else
 #define SRAM_SIZE 2048
 // Assume we need this much for everything else
 #define VAR_ALLOWANCE (NUM_LEDS * 3 + 850)
 #define MAX_FRAMES (BASE_WID == 1 ? (SRAM_SIZE - VAR_ALLOWANCE) / NUM_LEDS : 0)
+#endif // ESP32
 
 #define WIDTH (STAGGERED ? BASE_WID * 2 + 1 : BASE_WID)
 #define logical_num_leds (STAGGERED ? NUM_LEDS * 2 : NUM_LEDS)
@@ -251,7 +261,7 @@ void BlumeGFX::drawPixel(int16_t x, int16_t y, uint16_t color) {
   if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) {
     return;
   }
-  setAt(x, HEIGHT-1-y, realColor);
+  setAt(x, y, realColor);
   printed = true;
 }
 
@@ -518,6 +528,12 @@ inline bool isImaginary(uint16_t x, uint16_t y) {
     STAGGERED && (x % 2 != y % 2));
 }
 void setAt(uint16_t x, uint16_t y, CRGB color) {
+  if (FLIP_HORIZONTAL) {
+    x = WIDTH - 1 - x;
+  }
+  if (FLIP_VERTICAL) {
+    y = HEIGHT - 1 -y;
+  }
   if (STAGGERED) {
     if (isImaginary(x, y)) {
       return;
@@ -535,6 +551,9 @@ void setAt(uint16_t x, uint16_t y, CRGB color) {
   }
 }
 void fillRow(uint16_t row, CRGB color) {
+  if (FLIP_VERTICAL) {
+    row = HEIGHT - 1 - row;
+  }
   if (STAGGERED) {
     uint16_t start = row * WIDTH / 2;
     uint16_t num = WIDTH / 2;
@@ -556,6 +575,9 @@ void fillRow(uint16_t row, CRGB color) {
   }
 }
 void fillCol(uint16_t col, CRGB color) {
+  if (FLIP_HORIZONTAL) {
+    col = WIDTH - 1 - col;
+  }
   if (ZIGZAG) {
     for (uint16_t i = 0; i < HEIGHT; i++) {
       setAt(col, i, color);
@@ -870,13 +892,15 @@ void runPixels(bool initialize) {
     frame = 0;
   }
   if (initialize || micros() >= target_us) {
-    for (uint16_t i = 0; i < NUM_LEDS; i++) {
-      byte color = ledFrames[frame * NUM_LEDS + i];
-      leds[i] = CRGB(
-        ((color & 0b11100000) >> 5) * 36,
-        ((color & 0b00011100) >> 2) * 36,
-        ((color & 0b00000011) >> 0) * 85
-      );
+    for (uint16_t x = 0; x < WIDTH; x++) {
+      for (uint16_t y = 0; y < HEIGHT; y++) {
+        byte color = ledFrames[frame * NUM_LEDS + x + y * WIDTH];
+        setAt(x, y, CRGB(
+          ((color & 0b11100000) >> 5) * 36,
+          ((color & 0b00011100) >> 2) * 36,
+          ((color & 0b00000011) >> 0) * 85
+        ));
+      }
     }
     frame = (frame + 1) % settings.hue;
     target_us = micros() + long(settings.saturation) * 100;

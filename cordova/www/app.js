@@ -79,6 +79,16 @@ function sendColor() {
   }
 };
 
+function imageDataPixelToByte(imageData, x, y) {
+  // Takes an ImageData object and x,y and returns
+  // the pixel at that coordiante in RRRGGGBB format.
+  var idx = (x + y * imageData.width) * 4;
+  return (
+    (Math.floor(imageData.data[idx + 0] / 32) << 5) +
+    (Math.floor(imageData.data[idx + 1] / 32) << 2) +
+    (Math.floor(imageData.data[idx + 2] / 64) << 0));
+}
+
 sendImage = function(file) {
   if (!app.initialized) {
     return;
@@ -107,31 +117,43 @@ sendImage = function(file) {
     // of the same dimensions.
     for (var i in app.devices) {
       var dev = app.devices[i];
-      if (!dev.isConnected() || !dev.height || !dev.maxFrames
-          || dev.width !== 1) {
-        console.log("Skipping disconnected or non-POV device", dev);
+      if (!dev.isConnected()) {
+        // Don't do anything with disconnected devices.
         continue;
       }
-      var width = Math.min(
-        dev.maxFrames,
-        Math.round(img.naturalWidth * dev.height / img.naturalHeight));
+      if (!dev.maxFrames) {
+        console.log("Skipping devices with maxFrames=0", dev);
+        continue;
+      }
+      var width = dev.width == 1 ?
+        // POV display
+        Math.min(
+          dev.maxFrames,
+          Math.round(img.naturalWidth * dev.height / img.naturalHeight)) :
+        // 2D display
+        dev.width;
       ctx.fillStyle = 'black';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, width, dev.height);
       // TODO: Needed?
       img.style.display = 'none';
       var arr = new Uint8Array(dev.height * width);
-      var data = ctx.getImageData(0, 0, width, dev.height).data;
+      var data = ctx.getImageData(0, 0, width, dev.height);
       for (var i = 0; i < width; i++) {
         for (var j = 0; j < dev.height; j++) {
-          var idx = ((dev.height - 1 - j) * width + i) * 4;
-          arr[i * dev.height + j] = (
-            (Math.floor(data[idx + 0] / 32) << 5) +
-            (Math.floor(data[idx + 1] / 32) << 2) +
-            (Math.floor(data[idx + 2] / 64) << 0));
+          if (dev.width == 1) {
+            arr[i * dev.height + j] = imageDataPixelToByte(
+              data, i, dev.height - 1 - j);
+          } else {
+            arr[i + width * j] = imageDataPixelToByte(
+              data, i, j);
+          }
         }
       }
-      app.sendCommand(dev, brightness, 'P', width, frameTime);
+      app.sendCommand(
+          dev, brightness, 'P',
+          // "width" frames for POV; 1 frame for 2D
+          dev.width == 1 ? width : 1, frameTime);
       app.sendData(dev, arr);
     }
   };
