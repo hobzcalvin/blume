@@ -148,11 +148,11 @@ uint16_t opcCount = 0;
 #endif
 
 CRGB leds[NUM_LEDS];
-// ESP32 can run insanely fast; make this non-insane.
-#define MAX_FPS 120
 
 // Calculate max number of frames we can store in SRAM
 #ifdef ESP32
+// ESP32 can run insanely fast; make this non-insane.
+#define MAX_FPS 120
 // TODO: For now, only non-STAGGERED arragements are supported.
 // ESP32 SRAM is huge; carve out 4kB
 #define MAX_FRAMES (STAGGERED ? 0 : (4096 / NUM_LEDS))
@@ -516,11 +516,15 @@ void loop() {
   checkEncoder();
   portEXIT_CRITICAL(&encoderMux);
 #endif // ENCODER
+#ifdef MAX_FPS
   do {
     // show() at least once,
     FastLED.show();
     // and until it's been at least the minimum frame duration.
   } while (millis() < lastFrameTime + 1000 / MAX_FPS);
+#else
+  FastLED.show();
+#endif // MAX_FPS
 }
 
 inline bool isImaginary(uint16_t x, uint16_t y) {
@@ -664,13 +668,38 @@ void checkSerial() {
   }
   if (settings.mode == 'P') {
     // hue means number of frames in this case
-    settings.hue = min(settings.hue, MAX_FRAMES);
     if (settings.hue) {
-      if (!STREAM.readBytes(ledFrames, settings.hue * NUM_LEDS)) {
+      // We're getting frames in this message. How many bytes?
+      uint16_t bytesToRead;
+      // c1 is bit depth. Currently supported: 8, 24.
+      if (settings.c1 == 8) {
+        // 8-bit means 1 byte per pixel * "hue" frames.
+        bytesToRead = settings.hue;
+      } else if (settings.c1 == 24) {
+        // 24-bit means 3 bytes per pixel * "hue" frames.
+        bytesToRead = settings.hue * 3;
+      } else {
+#if DEBUG
+        Serial.print(F("Unsupported bit depth: "));
+        Serial.println(settings.c1);
+#endif
+        bytesToRead = 0;
+        flushSerialIn();
+        settings = previous;
+      }
+      // Make sure we aren't going beyond MAX_FRAMES
+      bytesToRead = min(bytesToRead, MAX_FRAMES);
+      // Multiply by number of pixels
+      bytesToRead *= NUM_LEDS;
+      if (bytesToRead > 0 &&
+          !STREAM.readBytes(ledFrames, bytesToRead)) {
 #if DEBUG
         Serial.print(F("failed to read "));
         Serial.print(settings.hue);
-        Serial.println(F(" image frames"));
+        Serial.print(F(" image frames at bit depth "));
+        Serial.print(settings.c1);
+        Serial.print(F(" total expected bytes "));
+        Serial.println(bytesToRead);
 #endif
         flushSerialIn();
         settings = previous;
@@ -894,12 +923,18 @@ void runPixels(bool initialize) {
   if (initialize || micros() >= target_us) {
     for (uint16_t x = 0; x < WIDTH; x++) {
       for (uint16_t y = 0; y < HEIGHT; y++) {
-        byte color = ledFrames[frame * NUM_LEDS + x + y * WIDTH];
-        setAt(x, y, CRGB(
-          ((color & 0b11100000) >> 5) * 36,
-          ((color & 0b00011100) >> 2) * 36,
-          ((color & 0b00000011) >> 0) * 85
-        ));
+        CRGB color;
+        if (settings.c1 == 8) {
+          byte c = ledFrames[frame * NUM_LEDS + x + y * WIDTH];
+          color = CRGB(
+            ((c & 0b11100000) >> 5) * 36,
+            ((c & 0b00011100) >> 2) * 36,
+            ((c & 0b00000011) >> 0) * 85
+          );
+        } else if (settings.c1 == 24) {
+          color = *((CRGB*)(ledFrames + (frame * NUM_LEDS + x + y * WIDTH) * 3));
+        }
+        setAt(x, y, color);
       }
     }
     frame = (frame + 1) % settings.hue;

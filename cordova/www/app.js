@@ -125,38 +125,59 @@ sendImage = function(file) {
         console.log("Skipping devices with maxFrames=0", dev);
         continue;
       }
+
       // This is a persistence-of-vision display if its width is 1.
       // Otherwise it's two-dimensional.
       var pov = dev.width == 1;
-      var width = pov ?
-        // POV display
+      // Frames of image data we will send.
+      var numFrames = pov ? 
+        // POV display: scale the image proportinally if we can;
+        // otherwise make it maxFrames wide.
         Math.min(
-          dev.maxFrames,
-          Math.round(img.naturalWidth * dev.height / img.naturalHeight)) :
-        // 2D display
-        dev.width;
+          Math.round(img.naturalWidth * dev.height / img.naturalHeight),
+          dev.maxFrames) :
+        // 2D display: only sending one frame.
+        1;
+      // Image will be scaled to numFrames for POV imagery
+      // and scaled to the device's width for 2D imagery
+      var width = pov ? numFrames : dev.width;
+      // If maxFrames is at least 3x numFrames, we can send in 24-bit color
+      // instead of 8-bit color.
+      var trueColor = dev.maxFrames >= numFrames * 3;
+
+      // Draw the image on the canvas to scale it.
       ctx.fillStyle = 'black';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, width, dev.height);
       // TODO: Needed?
       img.style.display = 'none';
-      var arr = new Uint8Array(dev.height * width);
+      // Multiply array size by 3 for 24-bit color.
+      var arr = new Uint8Array(dev.height * width * (trueColor ? 3 : 1));
+      // Grab scaled pixel data and put it in our data array.
       var data = ctx.getImageData(0, 0, width, dev.height);
-      for (var i = 0; i < width; i++) {
-        for (var j = 0; j < dev.height; j++) {
-          if (pov) {
-            arr[i * dev.height + j] = imageDataPixelToByte(
-              data, i, dev.height - 1 - j);
+      for (var x = 0; x < width; x++) {
+        for (var y = 0; y < dev.height; y++) {
+          var outputIdx = pov ?
+            // POV images are sent by column,
+            x * dev.height + y :
+            // while 2D images are standardized to be sent as progressive
+            // rows of data.
+            x + width * y;
+          if (trueColor) {
+            // Loop through R, G, B
+            for (var i = 0; i < 3; i++) {
+              // Image data is in RGBA format
+              arr[outputIdx * 3 + i] = data.data[(x + y * width) * 4 + i];
+            }
           } else {
-            arr[i + width * j] = imageDataPixelToByte(
-              data, i, j);
+            arr[outputIdx] = imageDataPixelToByte(data, x, y);
           }
         }
       }
       app.sendCommand(
           dev, brightness, 'P',
-          // "width" frames for POV; 1 frame for 2D
-          pov ? width : 1, frameTime);
+          numFrames, frameTime,
+          trueColor ? 24 : 8);
       app.sendData(dev, arr);
     }
   };
