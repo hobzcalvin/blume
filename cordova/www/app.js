@@ -125,7 +125,10 @@ sendImage = function(file) {
         console.log("Skipping devices with maxFrames=0", dev);
         continue;
       }
-      var width = dev.width == 1 ?
+      // This is a persistence-of-vision display if its width is 1.
+      // Otherwise it's two-dimensional.
+      var pov = dev.width == 1;
+      var width = pov ?
         // POV display
         Math.min(
           dev.maxFrames,
@@ -141,7 +144,7 @@ sendImage = function(file) {
       var data = ctx.getImageData(0, 0, width, dev.height);
       for (var i = 0; i < width; i++) {
         for (var j = 0; j < dev.height; j++) {
-          if (dev.width == 1) {
+          if (pov) {
             arr[i * dev.height + j] = imageDataPixelToByte(
               data, i, dev.height - 1 - j);
           } else {
@@ -153,7 +156,7 @@ sendImage = function(file) {
       app.sendCommand(
           dev, brightness, 'P',
           // "width" frames for POV; 1 frame for 2D
-          dev.width == 1 ? width : 1, frameTime);
+          pov ? width : 1, frameTime);
       app.sendData(dev, arr);
     }
   };
