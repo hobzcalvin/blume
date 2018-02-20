@@ -89,6 +89,64 @@ function imageDataPixelToByte(imageData, x, y) {
     (Math.floor(imageData.data[idx + 2] / 64) << 0));
 }
 
+handleGif = function(file) {
+  var brightness = parseInt(imgBrightSlider.noUiSlider.get());
+  var frameTime = parseInt(imgWidthSlider.noUiSlider.get());
+  var canvas = document.getElementById('canvas');
+  gifler(file).get().then(function(animator) {
+    window.animator = animator; // XXX TEMP
+    animator.onDrawFrame = function(ctx, frame) {
+      for (var i in app.devices) {
+        var dev = app.devices[i];
+        if (!dev.isConnected()) {
+          // Don't do anything with disconnected devices.
+          continue;
+        }
+        if (!dev.maxFrames) {
+          console.log("Skipping device with maxFrames=0", dev);
+          continue;
+        }
+        if (!dev.imgArr) {
+          dev.imgArr = new Uint8Array(
+            dev.height * dev.width * 3 * animator._frames.length);
+        } else if (animator._loops > 0) {
+          app.sendCommand(
+              dev, brightness, 'P',
+              animator._frames.length, frameTime,
+              24);
+          app.sendData(dev, dev.imgArr);
+          dev.imgArr = null;
+          continue;
+        }
+
+        // Draw the image on the canvas to scale it.
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(frame.buffer, 0, 0, dev.width, dev.height);
+        // Grab scaled pixel data and put it in our data array.
+        var data = ctx.getImageData(0, 0, dev.width, dev.height);
+        for (var x = 0; x < dev.width; x++) {
+          for (var y = 0; y < dev.height; y++) {
+            // Loop through R, G, B
+            for (var i = 0; i < 3; i++) {
+              dev.imgArr[(x + dev.width * y +
+                   animator._frameIndex * dev.width * dev.height) * 3 + i] =
+                data.data[(x + y * dev.width) * 4 + i];
+            }
+          }
+        }
+      }
+      if (animator._loops > 0) {
+        animator.stop();
+      }
+    };
+    //var canvas = gifler.Gif.getCanvasElement('#canvas');
+    animator.animateInCanvas(canvas, false);
+  }, function() {
+    console.log("animation error??", arguments);
+  });
+}
+
 sendImage = function(file) {
   if (!app.initialized) {
     return;
@@ -108,6 +166,18 @@ sendImage = function(file) {
     return;
   }
 
+  /*
+   * EXPERIMENTAL: Animated GIF support.
+   * Kinda works, but doesn't check for maxFrames,
+   * only supports 24-bit color,
+   * is very slow (needs a full loop of the gif before sending),
+   * and some frames don't appear as expected.
+  if (file.endsWith('.gif')) {
+    handleGif(file);
+    return;
+  }
+  */
+
   var img = new Image();
   img.src = file;
   var canvas = document.getElementById('canvas');
@@ -122,7 +192,7 @@ sendImage = function(file) {
         continue;
       }
       if (!dev.maxFrames) {
-        console.log("Skipping devices with maxFrames=0", dev);
+        console.log("Skipping device with maxFrames=0", dev);
         continue;
       }
 

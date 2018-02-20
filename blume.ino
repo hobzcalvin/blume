@@ -938,7 +938,9 @@ void runPixels(bool initialize) {
       }
     }
     frame = (frame + 1) % settings.hue;
-    target_us = micros() + long(settings.saturation) * 100;
+    // Non-POV displays don't need short between-frame times; this gives
+    // us a lower limit of 100FPS for animations.
+    target_us = micros() + long(settings.saturation) * (WIDTH == 1 ? 100 : 10000);
   }
 }
 
