@@ -1,7 +1,11 @@
 // These settings change per project!
 #define NUM_LEDS    256
+// If true, LEDs are arranged in columns instead of rows.
+// BASE_WID is the vertical dimension in this case.
+#define ROTATE false
+// Width of the piece, unless ROTATE is true.
 #define BASE_WID  16
-// If true, adds 1 to BASE_WID for every other row
+// If true, adds 1 to BASE_WID for every other row (column if ROTATE)
 #define STAGGERED false
 // Wiring is in a zig-zag pattern.
 #define ZIGZAG   false
@@ -30,7 +34,10 @@
 // Only change these settings if you're wired to different pins, using a non-APA102 chipset,
 // using a different COLOR_ORDER for RGB, etc.
 #ifdef ESP32
+// Open Pixel Control support can be turned on or off.
 #define ESP32_OPC
+// Over-the-air updates can be turned on or off.
+//#define ESP32_OTA
 // No standard pins for ESP32 yet; I'm using these at the moment.
 #define DATA_PIN_0    12
 #define CLOCK_PIN_0   13
@@ -39,6 +46,10 @@
 // Here, use PIXO Pixel's defaults.
 #define DATA_PIN_1    19
 #define CLOCK_PIN_1   18
+// Give your project a name!
+#define BLUETOOTH_NAME "Blume"
+// This varies by ESP32 dev board.
+#define LED_PIN LED_BUILTIN
 #else
 #define DATA_PIN_0    A0
 #define CLOCK_PIN_0   5
@@ -47,7 +58,7 @@
 #endif
 #define COLOR_ORDER BGR
 #define CHIPSET     APA102
-#define APA_MHZ 40
+#define APA_MHZ 2
 /* For LPD8806:
 #define COLOR_ORDER BRG
 #define CHIPSET     LPD8806
@@ -76,14 +87,8 @@
 #include <BLEServer.h>
 // FastLED seems to need this.
 #define FASTLED_FORCE_SOFTWARE_PINS
-// Over-the-air updates can be turned on or off.
-//#define ESP32_OTA
-// Open Pixel Control support can be turned on or off.
-//#define ESP32_OPC
 // Something small and reasonable.
 #define EEPROM_SIZE 64
-// This varies by ESP32 dev board.
-#define LED_PIN LED_BUILTIN
 #endif // ESP32
 
 #ifdef ESP32_OTA
@@ -163,10 +168,16 @@ CRGB leds[NUM_LEDS];
 #define MAX_FRAMES (BASE_WID == 1 ? (SRAM_SIZE - VAR_ALLOWANCE) / NUM_LEDS : 0)
 #endif // ESP32
 
-#define WIDTH (STAGGERED ? BASE_WID * 2 + 1 : BASE_WID)
 #define logical_num_leds (STAGGERED ? NUM_LEDS * 2 : NUM_LEDS)
+// These are the width/height assuming rows of LEDs.
+#define PHYSICAL_WIDTH (STAGGERED ? BASE_WID * 2 + 1 : BASE_WID)
 // Add extra row if there's a remainder.
-#define HEIGHT (logical_num_leds / WIDTH + (logical_num_leds % WIDTH ? 1 : 0))
+#define PHYSICAL_HEIGHT (logical_num_leds / PHYSICAL_WIDTH + (logical_num_leds % PHYSICAL_WIDTH ? 1 : 0))
+// If ROTATE is true, LEDs are in columns, not rows, so flip the 
+// physical dimensions when generating the dimensions the rest of the code uses.
+uint16_t WIDTH = ROTATE ? PHYSICAL_HEIGHT : PHYSICAL_WIDTH;
+uint16_t HEIGHT = ROTATE ? PHYSICAL_WIDTH : PHYSICAL_HEIGHT;
+
 int eepromStart;
 long saveTarget;
 long lastFrameTime;
@@ -326,7 +337,7 @@ void setup() {
   FastLED.show();
 
 #ifdef ESP32
-  BLEDevice::init("Blume ESP");
+  BLEDevice::init(BLUETOOTH_NAME);
   BLEServer* server = BLEDevice::createServer();
   bleSerial.begin(server, BLEUUID((uint16_t)0xDFB0), BLEUUID((uint16_t)0xDFB1));
   BLEDeviceID* did = new BLEDeviceID(
@@ -532,69 +543,39 @@ inline bool isImaginary(uint16_t x, uint16_t y) {
     STAGGERED && (x % 2 != y % 2));
 }
 void setAt(uint16_t x, uint16_t y, CRGB color) {
+  uint16_t idx;
   if (FLIP_HORIZONTAL) {
     x = WIDTH - 1 - x;
   }
   if (FLIP_VERTICAL) {
     y = HEIGHT - 1 -y;
   }
+  if (ROTATE) {
+    idx = x;
+    x = y;
+    y = idx;
+  }
   if (STAGGERED) {
     if (isImaginary(x, y)) {
       return;
     }
-    uint16_t idx = x / 2 + (x % 2) * (BASE_WID + 1) + WIDTH * (y / 2);
-    if (idx >= NUM_LEDS) {
-      return;
-    }
-    leds[idx] = color;
+    idx = x / 2 + (x % 2) * (BASE_WID + 1) + PHYSICAL_WIDTH * (y / 2);
   } else {
-    uint16_t idx = ((ZIGZAG && y % 2) ? (WIDTH - 1 - x) : x) + y * WIDTH;
-    if (idx < NUM_LEDS) {
-      leds[idx] = color;
-    }
+    idx = ((ZIGZAG && y % 2) ? (PHYSICAL_WIDTH - 1 - x) : x) + y * PHYSICAL_WIDTH;
+  }
+  // Safety
+  if (idx < NUM_LEDS) {
+    leds[idx] = color;
   }
 }
 void fillRow(uint16_t row, CRGB color) {
-  if (FLIP_VERTICAL) {
-    row = HEIGHT - 1 - row;
-  }
-  if (STAGGERED) {
-    uint16_t start = row * WIDTH / 2;
-    uint16_t num = WIDTH / 2;
-    if (row % 2) {
-      start += 1;
-    } else {
-      num += 1;
-    }
-    if (start + num > NUM_LEDS) {
-      num = NUM_LEDS - start;
-    }
-    fill_solid(leds + start, num, color);
-  } else {
-    for (uint16_t j = 0; j < WIDTH; j++) {
-      if (row * WIDTH + j < NUM_LEDS) {
-        leds[row * WIDTH + j] = color; 
-      }
-    }
+  for (uint16_t i = 0; i < WIDTH; i++) {
+    setAt(i, row, color);
   }
 }
 void fillCol(uint16_t col, CRGB color) {
-  if (FLIP_HORIZONTAL) {
-    col = WIDTH - 1 - col;
-  }
-  if (ZIGZAG) {
-    for (uint16_t i = 0; i < HEIGHT; i++) {
-      setAt(col, i, color);
-    }
-  } else if (STAGGERED) {
-    for (uint16_t i = col / 2 + (col % 2) * (BASE_WID + 1);
-         i < NUM_LEDS; i += WIDTH) {
-      leds[i] = color;
-    }
-  } else {
-    for (uint16_t j = col; j < NUM_LEDS; j+= WIDTH) {
-      leds[j] = color;
-    }
+  for (uint16_t i = 0; i < HEIGHT; i++) {
+    setAt(col, i, color);
   }
 }
 
