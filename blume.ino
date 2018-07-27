@@ -175,8 +175,13 @@ CRGB leds[NUM_LEDS];
 #define PHYSICAL_HEIGHT (logical_num_leds / PHYSICAL_WIDTH + (logical_num_leds % PHYSICAL_WIDTH ? 1 : 0))
 // If ROTATE is true, LEDs are in columns, not rows, so flip the 
 // physical dimensions when generating the dimensions the rest of the code uses.
-uint16_t WIDTH = ROTATE ? PHYSICAL_HEIGHT : PHYSICAL_WIDTH;
-uint16_t HEIGHT = ROTATE ? PHYSICAL_WIDTH : PHYSICAL_HEIGHT;
+#if ROTATE
+#define WIDTH PHYSICAL_HEIGHT
+#define HEIGHT PHYSICAL_WIDTH
+#else
+#define WIDTH PHYSICAL_WIDTH
+#define HEIGHT PHYSICAL_HEIGHT
+#endif
 
 int eepromStart;
 long saveTarget;
@@ -254,7 +259,15 @@ byte nextEncoderMode = 0;
 
 
 #if TEXTMODE
+#if (HEIGHT >= 8)
+#define FONT NULL
+#define TEXT_OFFSET (HEIGHT - (HEIGHT/8) * 8) / 2
+#elif (HEIGHT >= 6)
 #include "Picopixel.h"
+#define FONT &Picopixel
+#define TEXT_OFFSET (HEIGHT - 6) + 4
+#endif
+
 void setAt(uint16_t x, uint16_t y, CRGB color);
 class BlumeGFX : public Adafruit_GFX {
   public:
@@ -278,28 +291,29 @@ void BlumeGFX::drawPixel(int16_t x, int16_t y, uint16_t color) {
 
 BlumeGFX gfx = BlumeGFX(WIDTH, HEIGHT);
 
-// Max length 32
-char text[32] = "Hello World! I'm Blume. :-)";
+// Max length 64
+char text[64] = "pqgjy Hello World! I'm Blume. :-)";
 void runText(bool initialize) {
   // TODO: c1 = speed, or rainbow on?
   // TODO: c2 = rainbow size, or rainbow vertical?
   static int pos = WIDTH;
   static long nextShift;
   if (initialize) {
-    gfx.setFont(&Picopixel);
+    gfx.setTextSize(HEIGHT / 8);
+    gfx.setFont(FONT);
     gfx.setTextWrap(false);
     nextShift = 0;
   }
   if (!nextShift || millis() >= nextShift) {
     pos--;
-    nextShift = millis() + 100;
+    nextShift = millis() + 90;
   }
-  gfx.setCursor(pos, 4);
+  gfx.setCursor(pos, TEXT_OFFSET);
   fill_solid(leds, NUM_LEDS, 0);
   gfx.realColor = CHSV(settings.hue, settings.saturation, 255);
   gfx.printed = false;
   gfx.print(text);
-  if (!gfx.printed) {
+  if (!gfx.printed && pos < WIDTH / 2) {
     pos = WIDTH;
   }
 }
