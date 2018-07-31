@@ -79,6 +79,14 @@
       margin: 10px 0px;
     }
 
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    button:active {
+      -webkit-transform: scale3d(0.9, 0.9, 1);
+    }
 
   </style>
 
@@ -197,6 +205,41 @@
               <input type="text" id="textColorPicker"/>
               <br/>
               <label>Text: <input type="text" id="textInput"/></label>
+            </div>
+          </div>
+        </div>
+        <div class="card" id="demoCard">
+          <div class="card-header collapsed" role="tab" id="headingDemo" data-toggle="collapse" data-target="#collapseDemo" aria-expanded="false" aria-controls="collapseDemo">
+            <h5 class="mb-0">
+              Demo
+            </h5>
+            <button id="demoAddCurrent">Add Current Settings</button>
+          </div>
+          <div id="collapseDemo" class="collapse" role="tabpanel" aria-labelledby="headingDemo" data-parent="#accordion">
+            <div class="card-body">
+              <div id="demo_bright">
+                Brightness
+                <div id="demo_bright_slider"></div>
+              </div>
+              <div id="demo_time">
+                Display Time
+                <div id="demo_time_slider"></div>
+                <center><span id="demoTimeSeconds"></span> sec</center>
+              </div>
+              <label>
+                <input type="radio" name="demo-mode" value="added" checked/>
+                Use Added Settings
+              </label>
+              <br/>
+              <label>
+                <input type="radio" name="demo-mode" value="random"/>
+                Randomize All Modes
+              </label>
+              <br/>
+              <button id="demoNext">Next!</button>
+              <br/>
+              <br/>
+              <button id="demoClear">Clear All Added</button>
             </div>
           </div>
         </div>

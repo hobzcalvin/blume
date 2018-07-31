@@ -47,6 +47,8 @@ var blobsSpeedSlider = document.getElementById('blobs_speed_slider');
 var blobsRedSizeSlider = document.getElementById('blobs_red_size_slider');
 var blobsGreenSizeSlider = document.getElementById('blobs_green_size_slider');
 var blobsBlueSizeSlider = document.getElementById('blobs_blue_size_slider');
+var demoBrightSlider = document.getElementById('demo_bright_slider');
+var demoTimeSlider = document.getElementById('demo_time_slider');
 
 function sendColor() {
   if (!app.initialized) {
@@ -291,6 +293,32 @@ sendText = function() {
   app.sendData(null, txt);
 }
 
+sendDemo = function() {
+  if (!app.initialized) {
+    return;
+  }
+  if (pendingSends) {
+    doPostSend = function() {
+      sendDemo();
+    };
+    return;
+  }
+  var bright = parseInt(demoBrightSlider.noUiSlider.get());
+  var time = parseInt(demoTimeSlider.noUiSlider.get());
+  $('#demoTimeSeconds').html(time == 256 ? 'infinite': time);
+  var mode = $('input[type=radio][name=demo-mode]:checked').val();
+  app.sendCommand(null, bright, 'd', time == 256 ? 0 : time, mode == 'added' ? 0 : 1);
+}
+saveDemoCurrent = function() {
+  app.sendAsk(null, 'ds');
+}
+moveDemoNext = function() {
+  app.sendAsk(null, 'dn');
+}
+clearDemoSaved = function() {
+  app.sendAsk(null, 'dc');
+}
+
 app.initialize = function() {
 
   $('#accordion .collapse').on('show.bs.collapse', function() {
@@ -305,6 +333,8 @@ app.initialize = function() {
       sendBlobs();
     } else if (this.id === 'collapseText') {
       sendText();
+    } else if (this.id === 'collapseDemo') {
+      sendDemo();
     }
   });
 
@@ -412,6 +442,38 @@ app.initialize = function() {
     move: sendText
   });
   $('#textInput').on('input', sendText);
+
+  $('#demoAddCurrent').click(function(e) {
+    saveDemoCurrent();
+    e.stopPropagation();
+  });
+  noUiSlider.create(demoBrightSlider, {
+    start: 255,
+    range: { min: 0, max: 255 },
+  });
+  demoBrightSlider.noUiSlider.on('update', function() {
+    sendDemo();
+  });
+  noUiSlider.create(demoTimeSlider, {
+    start: 30,
+    range: { min: 1, max: 256 },
+  });
+  demoTimeSlider.noUiSlider.on('update', function() {
+    sendDemo();
+  });
+  $('input[type=radio][name=demo-mode]').change(function() {
+    sendDemo();
+  });
+  $('#demoNext').click(function() {
+    moveDemoNext();
+  });
+  $('#demoClear').click(function() {
+    if (window.confirm(
+          "WARNING! This will clear ALL saved demo settings on ALL connected devices."
+          )) {
+      clearDemoSaved();
+    }
+  });
 
   app.initialized = true;
   app.startScan();
@@ -656,7 +718,11 @@ app.sendCommand = function(devices, brightness, mode) {
 }
 
 app.sendAsk = function(devices, question) {
-  app.sendData(devices, [0x21, 0, question.charCodeAt(0)]);
+  var data = [0x21, 0];
+  for (var i = 0; i < question.length; i++) {
+    data.push(question.charCodeAt(i));
+  }
+  app.sendData(devices, data);
 }
 
 function toHexString(byteArray) {

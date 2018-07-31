@@ -87,9 +87,9 @@
 #include <BLEServer.h>
 // FastLED seems to need this.
 #define FASTLED_FORCE_SOFTWARE_PINS
-// Something small and reasonable.
-#define EEPROM_SIZE 64
 #endif // ESP32
+// Used to set size on ESP32, but also needed so we know how big it is on Atmega328P.
+#define EEPROM_SIZE 1024
 
 #ifdef ESP32_OTA
 #include <WiFi.h>
@@ -184,6 +184,17 @@ CRGB leds[NUM_LEDS];
 #endif
 
 int eepromStart;
+// Start address for stored demo settings
+int demoEepromStart;
+// Number of demo settings we have room for
+byte maxDemos;
+// Index of the next demo slot to save; loaded from EEPROM.
+byte curDemo;
+// Initialized with maxDemos, reduced when we randomly load a demo setting
+// that doesn't appear to be a valid demo.
+byte numDemos;
+// Timestamp of last new demo settings
+long lastDemoSettings;
 long saveTarget;
 long lastFrameTime;
 float lastFrameDuration;
@@ -198,6 +209,16 @@ struct SavedSettings {
   byte c2;
 };
 SavedSettings settings;
+// When we're in demo mode, demoSettings.mode will be 'd'; otherwise it is 0.
+// 'settings' is used for the settings generated/restored by the demo.
+SavedSettings demoSettings;
+
+// List of modes that should be used when randomly generating demo settings.
+char demoModes[] = { 'M', 'Z', 'B'
+#if TEXTMODE
+  , 'T'
+#endif
+};
 
 // Stored frames of POV/light-painting image, used by mode 'P'
 // Each pixel is in 8-bit RRRGGGBB format
@@ -292,7 +313,7 @@ void BlumeGFX::drawPixel(int16_t x, int16_t y, uint16_t color) {
 BlumeGFX gfx = BlumeGFX(WIDTH, HEIGHT);
 
 // Max length 64
-char text[64] = "pqgjy Hello World! I'm Blume. :-)";
+char text[64] = "Hello World! I'm Blume. :-)";
 void runText(bool initialize) {
   // TODO: c1 = speed, or rainbow on?
   // TODO: c2 = rainbow size, or rainbow vertical?
@@ -400,21 +421,21 @@ void setup() {
       type = "filesystem";
 
     // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-    Serial.println("Start updating " + type);
+    Serial.println(F("Start updating ") + type);
   });
   ArduinoOTA.onEnd([]() {
-    Serial.println("\nEnd");
+    Serial.println(F("\nEnd"));
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
     Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
   });
   ArduinoOTA.onError([](ota_error_t error) {
     Serial.printf("Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+    if (error == OTA_AUTH_ERROR) Serial.println(F("Auth Failed"));
+    else if (error == OTA_BEGIN_ERROR) Serial.println(F("Begin Failed"));
+    else if (error == OTA_CONNECT_ERROR) Serial.println(F("Connect Failed"));
+    else if (error == OTA_RECEIVE_ERROR) Serial.println(F("Receive Failed"));
+    else if (error == OTA_END_ERROR) Serial.println(F("End Failed"));
   });
   ArduinoOTA.begin();
 #endif // ESP32_OTA
@@ -465,6 +486,10 @@ void setup() {
   FastLED.delay(500);
 #endif
 
+  // Before loading from EEPROM (which could be storing demo settings),
+  // set demoSettings off to ensure they aren't mistakenly seen as on.
+  demoSettings.mode = 0;
+
 #ifdef ESP32
   EEPROM.begin(EEPROM_SIZE);
 #endif
@@ -475,8 +500,44 @@ void setup() {
 #endif
   // Initialize eepromStart: the address where we start writing our settings.
   EEPROM.get(EEPROM_START_POINTER_ADDR, eepromStart);
+
+  // Remember the start of demo EEPROM settings:
+  demoEepromStart =
+    // general start address,
+    eepromStart
+    // plus normal saved settings,
+    + sizeof(SavedSettings)
+#if TEXTMODE
+    // plus the text we save if any.
+    + sizeof(text)
+#endif
+    ;
+  // Number of demo settings we can store:
+  // account for the byte used to store the current demo index.
+  maxDemos = (EEPROM_SIZE - demoEepromStart - sizeof(curDemo))
+    / sizeof(SavedSettings);
+  // We'll reduce this if we find an invalid demo at an index we try.
+  numDemos = maxDemos;
+  curDemo = EEPROM.read(demoEepromStart);
+#if DEBUG
+  Serial.print(F("demoEepromStart: "));
+  Serial.print(demoEepromStart);
+  Serial.print(F(" curDemo: "));
+  Serial.print(curDemo);
+  Serial.print(F(" maxDemos: "));
+  Serial.println(maxDemos);
+#endif
+  if (curDemo >= maxDemos) {
+#if DEBUG
+    Serial.println(F("curDemo >= maxDemos; correcting"));
+#endif
+    // Reset to 0, not knowing how many demos are legitimately stored.
+    curDemo = 0;
+    EEPROM.write(demoEepromStart, curDemo);
+  }
+
   // Re-apply saved settings
-  restoreFromSettings(true);
+  restoreFromSettings(eepromStart);
   // Make sure we won't save unless we get new settings
   saveTarget = 0;
   // Initialize lastFrameTime
@@ -496,10 +557,10 @@ void doFPS() {
     Serial.print(F(" FPS: "));
     Serial.print((float)totalLoops / (float)totalDurations * 1000.0);
 #ifdef ESP32_OPC
-    Serial.print(" OPCPS: ");
+    Serial.print(F(" OPCPS: "));
     Serial.print((float)opcCount / (float)totalDurations * 1000.0);
     opcCount = 0;
-    Serial.print(" IP address: ");
+    Serial.print(F(" IP address: "));
     Serial.print(WiFi.localIP());
 #endif
     Serial.println();
@@ -517,7 +578,7 @@ void loop() {
 #if ENCODER
   if (encoderNewSettingsPending) {
     encoderNewSettingsPending = false;
-    restoreFromSettings(false);
+    restoreFromSettings(-1);
   }
 #endif
 #ifdef ESP32_OPC
@@ -620,7 +681,6 @@ void checkSerial() {
     flushSerialIn();
     return;
   }
-  //Serial.println("found !");
   byte len;
   if (!STREAM.readBytes(&len, 1)) {
 #if DEBUG
@@ -647,6 +707,27 @@ void checkSerial() {
 #endif
         };
         sendSeparately(dims, sizeof(dims));
+      } else if (question == 'd') {
+        // We use "questions" to store demo settings and advance to the next
+        // demo, because these aren't settings per se.
+        // 'd' is followed by the demo command character.
+        byte command;
+        if (!STREAM.readBytes(&command, 1)) {
+#if DEBUG
+          Serial.println(F("no demo command"));
+#endif
+        } else {
+          if (command == 's') {
+            // Save the current settings in the EEPROM's demo list.
+            saveCurrentForDemo();
+          } else if (command == 'n') {
+            // Advance to the next generated/stored demo settings.
+            nextForDemo();
+          } else if (command == 'c') {
+            // Clear all saved demos!
+            clearAllDemos();
+          }
+        }
       }
     }
     return;
@@ -724,20 +805,51 @@ void checkSerial() {
     }
 #endif
   }
-  // We have new settings! Apply them.
-  restoreFromSettings(false);
+  if (settings.mode == 'd') {
+    // If we're transitioning from non-demo to demo or
+    // saved-demo to randomized-demo, we should trigger new settings.
+    bool newDemo = !demoSettings.mode ||
+      (demoSettings.saturation & 0b1) != (settings.saturation & 0b1);
+    // Demo settings are saved here; settings is used for the actual settings
+    // we render.
+    demoSettings = settings;
+    if (newDemo) {
+      // We've newly switched to demo mode or switched between use-saved and
+      // generate-randomly; load/generate new settings now.
+      nextForDemo();
+    } else {
+      // If brightness or display time changes, we don't want/need to get
+      // new settings.
+      settings = previous;
+      // ...but we do need to respect a new demo brightness setting.
+      settings.brightness = demoSettings.brightness;
+    }
+    // restoreFromSettings() is called by nextForDemo() and isn't needed if
+    // this is just a brightness etc. change, so we don't call it here.
+    // We do need to reset saveTarget, though, because we prevent resetting
+    // it in restoreFromSettings() while the demo is running.
+    saveTarget = millis() + EEPROM_SAVE_TIMEOUT_MS;
+  } else {
+    // We are not in demo mode; make sure the flag for demo settings is off
+    demoSettings.mode = 0;
+    // And we have new non-demo settings! Apply them.
+    restoreFromSettings(-1);
+  }
 }
 
 void checkSave() {
   // Save settings to EEPROM if we have a target and we've hit it
+  // If demo mode is on, we want to save its settings, not the settings for the
+  // current demo.
+  SavedSettings* realSettings = demoSettings.mode == 'd' ? &demoSettings : &settings;
   if (saveTarget && millis() >= saveTarget &&
       // Special case: pixel mode only works in volatile memory
-      settings.mode != 'P') {
+      realSettings->mode != 'P') {
     // Uses update() so only rewrites if necessary
-    EEPROM.put(eepromStart, settings);
+    EEPROM.put(eepromStart, *realSettings);
 #if TEXTMODE
-    if (settings.mode == 'T') {
-      EEPROM.put(eepromStart + sizeof(settings), text);
+    if (realSettings->mode == 'T') {
+      EEPROM.put(eepromStart + sizeof(SavedSettings), text);
     }
 #endif
 #ifdef ESP32
@@ -750,12 +862,20 @@ void checkSave() {
   }
 }
 
-bool restoreFromSettings(bool loadEeprom) {
-  if (loadEeprom) {
+bool restoreFromSettings(int32_t eepromAddr) {
+  // If eepromAddr is >= 0, load from the given EEPROM address.
+  if (eepromAddr >= 0) {
+#if DEBUG
+    Serial.print(F("Restoring settings from EEPROM address "));
+    Serial.println(eepromAddr);
+#endif
     // Initialize settings
-    EEPROM.get(eepromStart, settings);
+    EEPROM.get(eepromAddr, settings);
 #if TEXTMODE
     if (settings.mode == 'T') {
+      // text is always saved at this address; NOT at
+      // the address of demo settings which might have been passed
+      // as eepromAddr.
       EEPROM.get(eepromStart + sizeof(settings), text);
     }
 #endif // TEXTMODE
@@ -802,19 +922,42 @@ bool restoreFromSettings(bool loadEeprom) {
   } else if (settings.mode == 'T') {
     runText(true);
 #endif
+  } else if (settings.mode == 'd') {
+    // Special case: demo mode.
+    // We'll only get here when loading from EEPROM:
+    // checkSerial() does its own special restoration of settings
+    // to ensure that changes to demo settings don't always trigger
+    // new demos.
+    // Restore demoSettings and load/generate a new demo mode.
+    demoSettings = settings;
+    // New demo mode.
+    nextForDemo();
   } else {
 #if DEBUG
     Serial.print(F("Unknown mode: "));
     Serial.println(settings.mode);
 #endif
+    fill_solid(leds, NUM_LEDS, 0);
+    return false;
   }
-  if (!loadEeprom) {
+  if (eepromAddr < 0 && !demoSettings.mode) {
     // Plan to save this if we don't get any more data
     saveTarget = millis() + EEPROM_SAVE_TIMEOUT_MS;
   }
+  return true;
 }
 
 void runMode() {
+  // If we're currently in demo mode,
+  if (demoSettings.mode == 'd' &&
+      // and display-time is not 0 (meaning only advance manually),
+      demoSettings.hue &&
+      // and it's been display-time seconds since the last time we advanced,
+      (millis() - lastDemoSettings) >= long(demoSettings.hue) * 1000) {
+    // advance to the next demo settings.
+    nextForDemo();
+  }
+
   FastLED.setBrightness(settings.brightness);
   if (settings.mode == 'M') {
     runMovement(false);
@@ -1045,6 +1188,91 @@ void runRandom(bool initialize) {
   }
 }
 
+void nextForDemo() {
+  if (demoSettings.saturation & 0b1) {
+    // Randomize!
+    settings.mode = demoModes[random(sizeof(demoModes))];
+#if DEBUG
+    Serial.println(F("New random demo:"));
+#endif
+    settings.hue = random(256);
+    settings.saturation = random(256);
+    settings.c1 = random(256);
+    settings.c2 = random(256);
+    // Initialize new settings
+    restoreFromSettings(-1);
+  } else {
+    // Load saved demo settings
+    while (true) {
+      // Always try to load a demo at least once; this will at least load an
+      // invalid mode which turns off the LEDs and tells the user they need
+      // to save some demos!
+      int demoIdx = random(numDemos);
+#if DEBUG
+      Serial.print(F("Trying new saved demo at slot "));
+      Serial.println(demoIdx);
+#endif
+      if (restoreFromSettings(demoEepromStart + sizeof(curDemo)
+                              + demoIdx * sizeof(SavedSettings))) {
+        // This is a valid demo! Go with it.
+        break;
+      } else {
+        // demoIdx didn't have a valid demo, so set numDemos to demoIdx
+        // to make sure we don't choose it again.
+        numDemos = demoIdx;
+        // Update curDemo too if need be.
+        curDemo = min(curDemo, numDemos);
+        // We'll keep trying until we find a valid saved demo or
+        // numDemos is 0, above.
+#if DEBUG
+        Serial.print(F("Invalid demo; new numDemos: "));
+        Serial.println(numDemos);
+#endif
+        if (!numDemos) {
+          break;
+        }
+      }
+    }
+  }
+  // Always use the demo's brightness setting.
+  settings.brightness = demoSettings.brightness;
+  // Remember the time these settings were generated.
+  lastDemoSettings = millis();
+}
+void saveCurrentForDemo() {
+#if DEBUG
+  Serial.print(F("Saving current settings to demo slot "));
+  Serial.println(curDemo);
+#endif
+  EEPROM.put(demoEepromStart + sizeof(curDemo)
+             + curDemo * sizeof(SavedSettings), settings);
+#ifdef ESP32
+  EEPROM.commit();
+#endif
+  // If numDemos was previously reduced, increase it if needed.
+  numDemos = max(numDemos, curDemo + 1);
+  Serial.print(numDemos);
+  Serial.print(" NUM DEMOS, CUR DEMO");
+  // Next time we'll save in the next slot, or loop around if we've run out
+  // of save spots.
+  curDemo = (curDemo + 1) % maxDemos;
+  Serial.println(curDemo);
+  EEPROM.put(demoEepromStart, curDemo);
+}
+
+void clearAllDemos() {
+  for (int i = 0; i < numDemos; i++) {
+#if DEBUG
+    Serial.print(F("Clearing demo at slot "));
+    Serial.println(i);
+#endif
+    EEPROM.write(demoEepromStart + sizeof(curDemo) + i * sizeof(SavedSettings) + 1, 0);
+  }
+  curDemo = 0;
+  numDemos = 0;
+  EEPROM.put(demoEepromStart, curDemo);
+}
+
 #ifdef ESP32_OPC
 void cbOpcMessage(uint8_t channel, uint8_t command, uint16_t length, uint8_t* data) {
   memcpy(leds, data, min(length, sizeof(leds)));
@@ -1056,13 +1284,13 @@ void cbOpcMessage(uint8_t channel, uint8_t command, uint16_t length, uint8_t* da
 
 // Callback when a client is connected
 void cbOpcClientConnected(WiFiClient& client) {
-  Serial.print("New OPC Client: ");
+  Serial.print(F("New OPC Client: "));
   Serial.println(client.remoteIP());
 }
 
 // Callback when a client is disconnected
 void cbOpcClientDisconnected(OpcClient& opcClient) {
-  Serial.print("Client Disconnected: ");
+  Serial.print(F("Client Disconnected: "));
   Serial.println(opcClient.ipAddress);
 }
 #endif
@@ -1083,11 +1311,11 @@ void checkEncoder() {
         (int)(millis() - encoderPressTime - ENCODER_LONG_PRESS) /
         ENCODER_MS_PER_BRIGHTNESS);
 #if DEBUG
-  Serial.print("NewBright! ");
+  Serial.print(F("NewBright! "));
   Serial.print(encoderPressInitialBrightness);
-  Serial.print(" => ");
+  Serial.print(F(" => "));
   Serial.print(settings.brightness);
-  Serial.print("   ");
+  Serial.print(F("   "));
   Serial.print(millis());
   Serial.print(',');
   Serial.println(encoderPressTime);
@@ -1110,7 +1338,7 @@ void checkEncoder() {
     encoderNewSettingsPending = true;
     lastEncoder = val;
 #if DEBUG
-    Serial.print("Encoder change: ");
+    Serial.print(F("Encoder change: "));
     Serial.print(encoderPrimary);
     Serial.print(',');
     Serial.print(encoderSecondary);
@@ -1122,7 +1350,7 @@ void checkEncoder() {
 void encoderSwitchHandler() {
   portENTER_CRITICAL_ISR(&encoderMux);
 #if DEBUG
-  Serial.print("Switch! ");
+  Serial.print(F("Switch! "));
   Serial.println(!digitalRead(ENC_SW));
 #endif
   if (!digitalRead(ENC_SW) != encoderPressed) {
@@ -1147,7 +1375,7 @@ void encoderSwitchHandler() {
                ms > encoderPressTime + ENCODER_DEBOUNCE_MS &&
                ms <= encoderPressTime + ENCODER_LONG_PRESS) {
 #if DEBUG
-      Serial.print("Click! New mode: ");
+      Serial.print(F("Click! New mode: "));
       Serial.println(nextEncoderMode);
 #endif
       settings = encoderModes[nextEncoderMode];
