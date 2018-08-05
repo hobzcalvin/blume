@@ -1,3 +1,5 @@
+// Give your project a name!
+#define BLUETOOTH_NAME "Blume"
 // These settings change per project!
 #define NUM_LEDS    256
 // If true, LEDs are arranged in columns instead of rows.
@@ -25,7 +27,10 @@
 #define ENC_SW 21*/
 
 // Turn on R-G-B startup sequence, debug messages to serial console, etc.
-#define DEBUG true 
+#define DEBUG true
+// For Bluno Beetle, set bluetooth name programmatically on every restart.
+// Default on if DEBUG.
+#define SET_BLUETOOTH_NAME DEBUG
 
 // These are used by ESP32_OTA and ESP32_OPC support.
 #define WIFI_SSID "Your Wifi Network"
@@ -46,8 +51,6 @@
 // Here, use PIXO Pixel's defaults.
 #define DATA_PIN_1    19
 #define CLOCK_PIN_1   18
-// Give your project a name!
-#define BLUETOOTH_NAME "Blume"
 // This varies by ESP32 dev board.
 #define LED_PIN LED_BUILTIN
 #else
@@ -392,6 +395,17 @@ void setup() {
   did->start();
   server->getAdvertising()->start();
   STREAM.setTimeout(500);
+#elif SET_BLUETOOTH_NAME
+  Serial.print(F("+++"));
+  delay(500);
+  Serial.print(F("AT+NAME="));
+  Serial.print(F(BLUETOOTH_NAME));
+  Serial.print(F("\r\n"));
+  delay(500);
+  Serial.print(F("AT+EXIT\r\n"));
+  delay(500);
+  Serial.flush();
+  while (Serial.read() >= 0) {}
 #endif // ESP32
   
 #if defined(ESP32_OTA) || defined(ESP32_OPC)
@@ -613,10 +627,8 @@ void loop() {
 #endif // MAX_FPS
 }
 
-inline bool isImaginary(uint16_t x, uint16_t y) {
-  return x >= WIDTH || y >= HEIGHT || (
-    STAGGERED && (x % 2 != y % 2));
-}
+#define isImaginary(x, y) (x % 2 != y % 2)
+
 void setAt(uint16_t x, uint16_t y, CRGB color) {
   uint16_t idx;
   if (FLIP_HORIZONTAL) {
@@ -1117,7 +1129,7 @@ void runBlobs(bool initialize) {
   // Render the spots.
   for (uint16_t x = 0; x < WIDTH; x++) {
     for (uint16_t y = 0; y < HEIGHT; y++) {
-      if (isImaginary(x, y)) {
+      if (STAGGERED && isImaginary(x, y)) {
         continue;
       }
       for (byte c = RED; c <= BLUE; c++) {
