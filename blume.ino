@@ -16,6 +16,9 @@
 #define FLIP_HORIZONTAL false
 // DotStar FeatherWing flips vertical.
 #define FLIP_VERTICAL false
+// This many LEDs will be set blank and ignored at the front of the connected
+// string. Ignored by everything, including NUM_LEDS, layout stuff, etc.
+#define SKIP_FRONT 0
 // Support text mode; currently 6-pixel height only.
 #define TEXTMODE false
 // Set max milliamp draw limit, assuming standard 5-volt LEDs.
@@ -155,7 +158,8 @@ uint16_t opcCount = 0;
 #define LED_SETTINGS_1 CHIPSET, CLOCK_PIN_1, DATA_PIN_1, COLOR_ORDER
 #endif
 
-CRGB leds[NUM_LEDS];
+CRGB all_leds[SKIP_FRONT + NUM_LEDS];
+CRGB* leds = all_leds + SKIP_FRONT;
 
 // Calculate max number of frames we can store in SRAM
 #ifdef ESP32
@@ -364,14 +368,15 @@ void setup() {
   pinMode(CLOCK_PIN_0, OUTPUT);
   pinMode(DATA_PIN_1, OUTPUT);
   pinMode(CLOCK_PIN_1, OUTPUT);
-  FastLED.addLeds<LED_SETTINGS_0>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
-  FastLED.addLeds<LED_SETTINGS_1>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_SETTINGS_0>(all_leds, SKIP_FRONT + NUM_LEDS).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_SETTINGS_1>(all_leds, SKIP_FRONT + NUM_LEDS).setCorrection( TypicalLEDStrip );
   FastLED.setDither(DISABLE_DITHER);
 #if defined(MAX_MILLIAMPS) && MAX_MILLIAMPS
   FastLED.setMaxPowerInVoltsAndMilliamps(5, MAX_MILLIAMPS);
 #endif
   // Turn everything off at first to avoid buggy lingering data on the chips
   FastLED.setBrightness(0);
+  fill_solid(all_leds, SKIP_FRONT + NUM_LEDS, 0);
   FastLED.show();
 
 #ifdef ESP32
