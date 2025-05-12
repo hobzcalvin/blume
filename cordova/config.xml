@@ -57,11 +57,9 @@
         <splash height="2048" src="res/screens/ios/screen-ipad-portrait-2x.png" width="1536" />
     </platform>
     <engine name="android" spec="^6.2.3" />
-    <engine name="ios" spec="^4.4.0" />
     <plugin name="cordova-plugin-ble" spec="git+https://github.com/hobzcalvin/cordova-ble.git">
         <variable name="BLUETOOTH_USAGE_DESCRIPTION" value="This app would like to use Bluetooth to connect to nearby devices." />
     </plugin>
-    <plugin name="cordova-plugin-browsersync" spec="^1.1.0" />
     <plugin name="cordova-plugin-code-push" spec="^1.9.5-beta" />
     <plugin name="cordova-plugin-whitelist" spec="^1.3.2" />
 </widget>
