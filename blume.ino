@@ -1,16 +1,16 @@
 // Give your project a name!
 #define BLUETOOTH_NAME "Blume"
 // These settings change per project!
-#define NUM_LEDS    256
+#define NUM_LEDS    131
 // If true, LEDs are arranged in columns instead of rows.
 // BASE_WID is the vertical dimension in this case.
-#define ROTATE false
+#define ROTATE true
 // Width of the piece, unless ROTATE is true.
-#define BASE_WID  16
+#define BASE_WID  66
 // If true, adds 1 to BASE_WID for every other row (column if ROTATE)
 #define STAGGERED false
 // Wiring is in a zig-zag pattern.
-#define ZIGZAG   false
+#define ZIGZAG   true
 // 0,0 should be the top-left pixel in a 2D arrangment.
 // If not, use these to move it to another corner of the display.
 #define FLIP_HORIZONTAL false
@@ -22,7 +22,7 @@
 // Support text mode; currently 6-pixel height only.
 #define TEXTMODE false
 // Set max milliamp draw limit, assuming standard 5-volt LEDs.
-#define MAX_MILLIAMPS 3000
+#define MAX_MILLIAMPS 1000
 // Rotary encoder with button control.
 /*#define ENCODER true
 #define ENC_P1 22
@@ -43,27 +43,18 @@
 // using a different COLOR_ORDER for RGB, etc.
 #ifdef ESP32
 // Open Pixel Control support can be turned on or off.
-#define ESP32_OPC
+//#define ESP32_OPC
 // Over-the-air updates can be turned on or off.
 //#define ESP32_OTA
-// No standard pins for ESP32 yet; I'm using these at the moment.
-#define DATA_PIN_0    12
-#define CLOCK_PIN_0   13
-// A second set of pins get the same signal.
-// Useful when connecting multiple strips.
-// Here, use PIXO Pixel's defaults.
-#define DATA_PIN_1    19
-#define CLOCK_PIN_1   18
-// This varies by ESP32 dev board.
-#define LED_PIN LED_BUILTIN
-#else
-#define DATA_PIN_0    A0
-#define CLOCK_PIN_0   5
-#define DATA_PIN_1    A1
-#define CLOCK_PIN_1   4
+
+// Define LED_BUILTIN for ESP32
+#define LED_BUILTIN 2  // Most ESP32 boards use GPIO2 for built-in LED
+
+// WS2812 configuration
+#define DATA_PIN_0    13
 #endif
-#define COLOR_ORDER BGR
-#define CHIPSET     APA102
+#define COLOR_ORDER RGB
+#define CHIPSET     WS2812
 #define APA_MHZ 2
 /* For LPD8806:
 #define COLOR_ORDER BRG
@@ -88,11 +79,20 @@
 #ifdef ESP32
 // All of these are needed for Bluetooth functionality.
 #include <BLEDevice.h>
-#include <BLEDeviceID.h>
-#include <BLESerial.h>
 #include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
 // FastLED seems to need this.
 #define FASTLED_FORCE_SOFTWARE_PINS
+
+// Buffer for BLE data
+#define BLE_BUFFER_SIZE 1024
+byte bleBuffer[BLE_BUFFER_SIZE];
+int bleBufferHead = 0;
+int bleBufferTail = 0;
+
+// Global BLE characteristic pointer
+BLECharacteristic* characteristic = nullptr;
 #endif // ESP32
 // Used to set size on ESP32, but also needed so we know how big it is on Atmega328P.
 #define EEPROM_SIZE 1024
@@ -154,8 +154,8 @@ uint16_t opcCount = 0;
 #define LED_SETTINGS_0 CHIPSET, DATA_PIN_0, CLOCK_PIN_0, COLOR_ORDER, DATA_RATE_MHZ(APA_MHZ)
 #define LED_SETTINGS_1 CHIPSET, DATA_PIN_1, CLOCK_PIN_1, COLOR_ORDER, DATA_RATE_MHZ(APA_MHZ)
 #else
-#define LED_SETTINGS_0 CHIPSET, CLOCK_PIN_0, DATA_PIN_0, COLOR_ORDER
-#define LED_SETTINGS_1 CHIPSET, CLOCK_PIN_1, DATA_PIN_1, COLOR_ORDER
+#define LED_SETTINGS_0 WS2812, DATA_PIN_0, COLOR_ORDER
+#define LED_SETTINGS_1 WS2812, DATA_PIN_1, COLOR_ORDER
 #endif
 
 CRGB all_leds[SKIP_FRONT + NUM_LEDS];
@@ -348,15 +348,37 @@ void runText(bool initialize) {
 #endif // TEXTMODE
 
 #ifdef ESP32
-// These aren't defined out of the box??
-#define min(x,y) ((x) <= (y) ? (x) : (y))
-#define max(x,y) ((x) >= (y) ? (x) : (y))
-BLESerial bleSerial = BLESerial();
-#define STREAM bleSerial
+#define STREAM Serial
 #else
 #define STREAM Serial
 #endif // ESP32
 
+void sendSeparately(byte* buf, int len);
+
+// Add BLE write callback class
+class BlumeBLECallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) override {
+    std::string value = pCharacteristic->getValue();
+    byte* data = (byte*)value.data();
+    int len = value.length();
+    
+    // Debug print the received data
+    /*Serial.print("BLE received: ");
+    for(int i = 0; i < len; i++) {
+      Serial.print((char)data[i]);
+    }
+    Serial.println();*/
+    
+    // Add data to circular buffer
+    for(int i = 0; i < len; i++) {
+      int nextHead = (bleBufferHead + 1) % BLE_BUFFER_SIZE;
+      if(nextHead != bleBufferTail) { // Buffer not full
+        bleBuffer[bleBufferHead] = data[i];
+        bleBufferHead = nextHead;
+      }
+    }
+  }
+};
 
 void setup() {
   Serial.begin(115200);
@@ -368,8 +390,8 @@ void setup() {
   pinMode(CLOCK_PIN_0, OUTPUT);
   pinMode(DATA_PIN_1, OUTPUT);
   pinMode(CLOCK_PIN_1, OUTPUT);
-  FastLED.addLeds<LED_SETTINGS_0>(all_leds, SKIP_FRONT + NUM_LEDS).setCorrection( TypicalLEDStrip );
-  FastLED.addLeds<LED_SETTINGS_1>(all_leds, SKIP_FRONT + NUM_LEDS).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<WS2812, DATA_PIN_0, COLOR_ORDER>(all_leds, SKIP_FRONT + NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<WS2812, DATA_PIN_1, COLOR_ORDER>(all_leds, SKIP_FRONT + NUM_LEDS).setCorrection(TypicalLEDStrip);
   FastLED.setDither(DISABLE_DITHER);
 #if defined(MAX_MILLIAMPS) && MAX_MILLIAMPS
   FastLED.setMaxPowerInVoltsAndMilliamps(5, MAX_MILLIAMPS);
@@ -382,22 +404,18 @@ void setup() {
 #ifdef ESP32
   BLEDevice::init(BLUETOOTH_NAME);
   BLEServer* server = BLEDevice::createServer();
-  bleSerial.begin(server, BLEUUID((uint16_t)0xDFB0), BLEUUID((uint16_t)0xDFB1));
-  BLEDeviceID* did = new BLEDeviceID(
-    server,
-    "0x0BB9FD999969D238",
-    "DF Bluno",
-    "0123456789",
-    "FW V1.97",
-    "HW V1.7",
-    "SW V1.97",
-    "DFRobot",
-    "",
-    1,
-    0x0010,
-    0x0D00,
-    0);
-  did->start();
+  BLEUUID serviceUUID((uint16_t)0xDFB0);
+  BLEUUID charUUID((uint16_t)0xDFB1);
+  BLEService* service = server->createService(serviceUUID);
+  characteristic = service->createCharacteristic(
+    charUUID,
+    BLECharacteristic::PROPERTY_READ |
+    BLECharacteristic::PROPERTY_WRITE |
+    BLECharacteristic::PROPERTY_NOTIFY
+  );
+  characteristic->addDescriptor(new BLE2902());
+  characteristic->setCallbacks(new BlumeBLECallbacks());
+  service->start();
   server->getAdvertising()->start();
   STREAM.setTimeout(500);
 #elif SET_BLUETOOTH_NAME
@@ -672,93 +690,111 @@ void fillCol(uint16_t col, CRGB color) {
 }
 
 void sendSeparately(byte* buf, int len) {
-  // Flush any existing sending,
-  STREAM.flush();
-  // wait a while for that to go through,
-  delay(100);
-  // and send what should be a new blob.
-  STREAM.write(buf, len);
+  // Send data back through BLE
+  if(characteristic) {
+    characteristic->setValue(buf, len);
+    characteristic->notify();
+  }
 }
 
 void flushSerialIn() {
-  while (STREAM.available() > 0) {
-    STREAM.read();
-  }
+  bleBufferHead = bleBufferTail = 0;
 }
 
 void checkSerial() {
-  // No serial to consume; stop.
-  if (!STREAM.available()) {
+  // No data to consume; stop.
+  if (bleBufferHead == bleBufferTail) {
     return;
   }
-  if (!STREAM.find("!")) {
+  
+  // Read next byte
+  byte b = bleBuffer[bleBufferTail];
+  bleBufferTail = (bleBufferTail + 1) % BLE_BUFFER_SIZE;
+  
+  if (b != '!') {
 #if DEBUG    
     Serial.println(F("no !"));
 #endif
     flushSerialIn();
     return;
   }
-  byte len;
-  if (!STREAM.readBytes(&len, 1)) {
+  
+  // Read length byte
+  if (bleBufferHead == bleBufferTail) {
 #if DEBUG
     Serial.println(F("no len"));
 #endif
     flushSerialIn();
+    return;
   }
+  byte len = bleBuffer[bleBufferTail];
+  bleBufferTail = (bleBufferTail + 1) % BLE_BUFFER_SIZE;
+  
   if (!len) {
     // Special case: no length means primary is asking a question.
-    byte question;
-    if (!STREAM.readBytes(&question, 1)) {
+    if (bleBufferHead == bleBufferTail) {
 #if DEBUG
       Serial.println(F("no question"));
 #endif
       flushSerialIn();
-    } else {
-      if (question == 'D') {
-        // Send dimensions.
-        byte dims[] = { '!', 'D', WIDTH, HEIGHT, NUM_LEDS, MAX_FRAMES,
+      return;
+    }
+    byte question = bleBuffer[bleBufferTail];
+    bleBufferTail = (bleBufferTail + 1) % BLE_BUFFER_SIZE;
+    
+    if (question == 'D') {
+      // Send dimensions.
+      byte dims[] = { '!', 'D', WIDTH, HEIGHT, NUM_LEDS, MAX_FRAMES,
 #if TEXTMODE
-          sizeof(text)
+        sizeof(text)
 #else
-          0
+        0
 #endif
-        };
-        sendSeparately(dims, sizeof(dims));
-      } else if (question == 'd') {
-        // We use "questions" to store demo settings and advance to the next
-        // demo, because these aren't settings per se.
-        // 'd' is followed by the demo command character.
-        byte command;
-        if (!STREAM.readBytes(&command, 1)) {
+      };
+      sendSeparately(dims, sizeof(dims));
+    } else if (question == 'd') {
+      // We use "questions" to store demo settings and advance to the next
+      // demo, because these aren't settings per se.
+      // 'd' is followed by the demo command character.
+      if (bleBufferHead == bleBufferTail) {
 #if DEBUG
-          Serial.println(F("no demo command"));
+        Serial.println(F("no demo command"));
 #endif
-        } else {
-          if (command == 's') {
-            // Save the current settings in the EEPROM's demo list.
-            saveCurrentForDemo();
-          } else if (command == 'n') {
-            // Advance to the next generated/stored demo settings.
-            nextForDemo();
-          } else if (command == 'c') {
-            // Clear all saved demos!
-            clearAllDemos();
-          }
-        }
+        return;
+      }
+      byte command = bleBuffer[bleBufferTail];
+      bleBufferTail = (bleBufferTail + 1) % BLE_BUFFER_SIZE;
+      
+      if (command == 's') {
+        // Save the current settings in the EEPROM's demo list.
+        saveCurrentForDemo();
+      } else if (command == 'n') {
+        // Advance to the next generated/stored demo settings.
+        nextForDemo();
+      } else if (command == 'c') {
+        // Clear all saved demos!
+        clearAllDemos();
       }
     }
     return;
   }
 
   SavedSettings previous = settings;
-  if (!STREAM.readBytes((byte*)&settings, min(sizeof(settings), len))) {
+  
+  // Read settings bytes
+  for(int i = 0; i < min(sizeof(settings), (size_t)len); i++) {
+    if (bleBufferHead == bleBufferTail) {
 #if DEBUG
-    Serial.println(F("failed to read len bytes"));
+      Serial.println(F("failed to read len bytes"));
 #endif
-    flushSerialIn();
-    settings = previous;
-    return;
+      flushSerialIn();
+      settings = previous;
+      return;
+    }
+    ((byte*)&settings)[i] = bleBuffer[bleBufferTail];
+    bleBufferTail = (bleBufferTail + 1) % BLE_BUFFER_SIZE;
   }
+  
   if (settings.mode == 'P') {
     // hue means number of frames in this case
     if (settings.hue) {
@@ -779,23 +815,31 @@ void checkSerial() {
         bytesToRead = 0;
         flushSerialIn();
         settings = previous;
+        return;
       }
+      
       // Make sure we aren't going beyond MAX_FRAMES
-      bytesToRead = min(bytesToRead, MAX_FRAMES);
+      bytesToRead = (uint16_t)min((int)bytesToRead, MAX_FRAMES);
       // Multiply by number of pixels
       bytesToRead *= NUM_LEDS;
-      if (bytesToRead > 0 &&
-          !STREAM.readBytes(ledFrames, bytesToRead)) {
+      
+      // Read frame data
+      for(int i = 0; i < bytesToRead; i++) {
+        if (bleBufferHead == bleBufferTail) {
 #if DEBUG
-        Serial.print(F("failed to read "));
-        Serial.print(settings.hue);
-        Serial.print(F(" image frames at bit depth "));
-        Serial.print(settings.c1);
-        Serial.print(F(" total expected bytes "));
-        Serial.println(bytesToRead);
+          Serial.print(F("failed to read "));
+          Serial.print(settings.hue);
+          Serial.print(F(" image frames at bit depth "));
+          Serial.print(settings.c1);
+          Serial.print(F(" total expected bytes "));
+          Serial.println(bytesToRead);
 #endif
-        flushSerialIn();
-        settings = previous;
+          flushSerialIn();
+          settings = previous;
+          return;
+        }
+        ledFrames[i] = bleBuffer[bleBufferTail];
+        bleBufferTail = (bleBufferTail + 1) % BLE_BUFFER_SIZE;
       }
     } else if (previous.mode == 'P') {
       // Special case: frame count of 0 means no frames sent.
@@ -807,12 +851,19 @@ void checkSerial() {
 #endif
       flushSerialIn();
       settings = previous;
+      return;
     }
 #if TEXTMODE
   } else if (settings.mode == 'T') {
     // Read up to the full length of text, or until a null terminator.
     // Less error handling here; we don't really care what we get.
-    byte bytesRead = STREAM.readBytesUntil('\0', text, sizeof(text));
+    int bytesRead = 0;
+    while(bytesRead < sizeof(text) && bleBufferHead != bleBufferTail) {
+      byte b = bleBuffer[bleBufferTail];
+      bleBufferTail = (bleBufferTail + 1) % BLE_BUFFER_SIZE;
+      if(b == '\0') break;
+      text[bytesRead++] = b;
+    }
     if (bytesRead) {
       if (bytesRead < sizeof(text)) {
         for (byte i = bytesRead; i < sizeof(text); i++) {
@@ -822,6 +873,7 @@ void checkSerial() {
     }
 #endif
   }
+  
   if (settings.mode == 'd') {
     // If we're transitioning from non-demo to demo or
     // saved-demo to randomized-demo, we should trigger new settings.
@@ -1267,7 +1319,7 @@ void saveCurrentForDemo() {
   EEPROM.commit();
 #endif
   // If numDemos was previously reduced, increase it if needed.
-  numDemos = max(numDemos, curDemo + 1);
+  numDemos = (byte)max((int)numDemos, curDemo + 1);
   Serial.print(numDemos);
   Serial.print(" NUM DEMOS, CUR DEMO");
   // Next time we'll save in the next slot, or loop around if we've run out
