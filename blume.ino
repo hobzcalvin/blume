@@ -52,6 +52,9 @@
 
 // WS2812 configuration
 #define DATA_PIN_0    13
+#define CLOCK_PIN_0   14
+#define DATA_PIN_1    15
+#define CLOCK_PIN_1   16
 #endif
 #define COLOR_ORDER RGB
 #define CHIPSET     WS2812
@@ -380,6 +383,13 @@ class BlumeBLECallbacks : public BLECharacteristicCallbacks {
   }
 };
 
+class BlumeServerCallbacks : public BLEServerCallbacks {
+  void onDisconnect(BLEServer* pServer) {
+    // Needed to appear for reconnection after disconnect
+    BLEDevice::startAdvertising();
+  }
+};
+
 void setup() {
   Serial.begin(115200);
   // Only wait 500ms for new data before giving up on a command
@@ -404,6 +414,7 @@ void setup() {
 #ifdef ESP32
   BLEDevice::init(BLUETOOTH_NAME);
   BLEServer* server = BLEDevice::createServer();
+  server->setCallbacks(new BlumeServerCallbacks());
   BLEUUID serviceUUID((uint16_t)0xDFB0);
   BLEUUID charUUID((uint16_t)0xDFB1);
   BLEService* service = server->createService(serviceUUID);
