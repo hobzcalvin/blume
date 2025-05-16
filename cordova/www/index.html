@@ -168,7 +168,24 @@
 
     #loadingIndicator {
       text-align: center;
-      margin: 2rem 0;
+      margin: 2rem auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border-color);
+      border-top: 3px solid var(--accent-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
 
     .deviceContainer {
@@ -213,6 +230,49 @@
 
     .color-size {
       margin-bottom: 2rem;
+    }
+
+    .reload-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 2rem auto;
+      width: 100%;
+    }
+
+    .reload-button {
+      background: none;
+      border: none;
+      padding: 12px;
+      cursor: pointer;
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .reload-button:hover {
+      background-color: var(--secondary-bg);
+    }
+
+    .reload-button:active {
+      transform: scale(0.95);
+    }
+
+    .reload-icon {
+      color: var(--accent-color);
+      transition: transform 0.3s ease;
+    }
+
+    .reload-button:hover .reload-icon {
+      transform: rotate(180deg);
+    }
+
+    .reload-button:active .reload-icon {
+      transform: rotate(360deg);
     }
 
   </style>
@@ -361,7 +421,14 @@
         </div>
       </div>
     </div>
-    <a onclick="window.location.reload()">&#128260;</a>
+    <div class="reload-container">
+      <button id="reloadButton" class="reload-button" onclick="window.location.reload()">
+        <svg class="reload-icon" viewBox="0 0 24 24" width="24" height="24">
+          <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M23 4v6h-6M1 20v-6h6"/>
+          <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+      </button>
+    </div>
     <span id="codePushVersion"></span>
   </div>
 
