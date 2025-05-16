@@ -13,79 +13,206 @@
   <link rel='stylesheet' href='libs/bootstrap/bootstrap.css' />
   <link rel='stylesheet' href='libs/spectrum/spectrum.css' />
   <link rel='stylesheet' href='libs/nouislider/nouislider.css' />
+  <link rel='stylesheet' href='fonts/rajdhani.css' />
+  <link rel='stylesheet' href='css/spinner.css' />
 
   <style>
+    :root {
+      --primary-bg: #1a1a1a;
+      --secondary-bg: #2d2d2d;
+      --accent-color: #007AFF;
+      --text-primary: #ffffff;
+      --text-secondary: #b3b3b3;
+      --border-color: #404040;
+      --connected-color: #13552f;
+    }
 
     body {
-      font-family: "Verdana";
+      font-family: 'Rajdhani', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--primary-bg);
+      color: var(--text-primary);
+      margin: 0;
+      padding: 16px;
+      -webkit-font-smoothing: antialiased;
     }
 
-    .center {
-      display: block;
-      margin-left: auto;
-      margin-right: auto;
+    .container-fluid {
+      max-width: 800px;
+      margin: 0 auto;
     }
 
-    p.deviceAddress {
-      margin: 5px 0px 10px 10px;
-      font-size: xx-small;
-      font-weight:bold;
-    }
-
-    p.deviceName {
-      margin: 5px 0px 0px 10px;
-      font-weight: bold
-    }
-
-    div.deviceContainer {
-      border-radius: 10px;
-      border: 1px solid;
-      border-color: #CCCCCC;
-      overflow: hidden;
-      margin: 10px 0px;
-    }
-
-    .connected {
-      background-color: #ff0000;
-    }
-
-    #loadingIndicator {
-      width:20%;
-      vertical-align: middle;
-    }
-
-    .img-select {
+    h1 {
+      color: var(--text-primary);
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
       text-align: center;
-      padding: 2px;
-      border: 2px solid transparent;
     }
 
-    .img-select div,img {
-      vertical-align: middle;
-      height: 50px;
-      line-height: 50px;
-    }
-    .img-select img {
-      background-color: #000;
-    }
-
-    .img-select-selected {
-      border:2px solid #f00;
-    }
-
-    .noUi-horizontal {
-      left: 5%;
-      width: 90%;
-      margin: 10px 0px;
+    .card {
+      background-color: var(--secondary-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      margin-bottom: 1rem;
+      overflow: hidden;
     }
 
     .card-header {
       display: flex;
       justify-content: space-between;
+      align-items: center;
+      background-color: var(--secondary-bg);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .card-header:hover {
+      background-color: #363636;
+    }
+
+    .card-header h5 {
+      color: var(--text-primary);
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .card-header button {
+      margin: 0;
+    }
+
+    .card-body {
+      padding: 1rem;
+      color: var(--text-secondary);
+    }
+
+    .card-body:last-child {
+      padding-bottom: 1rem;
+    }
+
+    input[type="text"], input[type="checkbox"] {
+      background-color: var(--primary-bg);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin: 4px 0;
+    }
+
+    input[type="checkbox"] {
+      margin-right: 8px;
+    }
+
+    label {
+      color: var(--text-secondary);
+      display: block;
+      margin: 4px 0;
+    }
+
+    button {
+      background-color: var(--accent-color);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    button:hover {
+      opacity: 0.9;
     }
 
     button:active {
-      -webkit-transform: scale3d(0.9, 0.9, 1);
+      transform: scale(0.98);
+    }
+
+    .noUi-horizontal {
+      height: 8px;
+      margin: 12px 0;
+    }
+
+    .noUi-connect {
+      background: var(--accent-color);
+    }
+
+    .noUi-handle {
+      border-radius: 50%;
+      background: var(--accent-color);
+      border: none;
+      box-shadow: none;
+      width: 20px !important;
+      height: 20px !important;
+      right: -10px !important;
+      top: -6px !important;
+    }
+
+    .noUi-handle:before,
+    .noUi-handle:after {
+      display: none;
+    }
+
+    .img-select {
+      background-color: var(--primary-bg);
+      border-radius: 8px;
+      padding: 12px;
+      margin: 8px 0;
+    }
+
+    .img-select-selected {
+      border: 2px solid var(--accent-color);
+    }
+
+    #loadingIndicator {
+      text-align: center;
+      margin: 2rem 0;
+    }
+
+    .deviceContainer {
+      background-color: var(--secondary-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 0.75rem;
+      margin: 0.5rem 0;
+    }
+
+    .deviceName {
+      color: var(--text-primary);
+      font-size: 1.1rem;
+      margin-bottom: 0;
+    }
+
+    .deviceAddress {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-bottom: 0;
+    }
+
+    .connected {
+      background-color: var(--connected-color);
+    }
+
+    /* Spectrum color picker customization */
+    .sp-container {
+      background-color: var(--secondary-bg) !important;
+      border-color: var(--border-color) !important;
+    }
+
+    .sp-picker-container {
+      border-color: var(--border-color) !important;
+    }
+
+    .sp-input {
+      background-color: var(--primary-bg) !important;
+      color: var(--text-primary) !important;
+      border-color: var(--border-color) !important;
+    }
+
+    .color-size {
+      margin-bottom: 2rem;
     }
 
   </style>
@@ -98,7 +225,7 @@
     <h1>Blume</h1>
 
     <div id="loadingIndicator" style="display:none">
-      <img src="img/loader.gif">
+      <div class="spinner"></div>
     </div>
     <div id="scanResultView" style="display:none">
     </div>
@@ -115,23 +242,17 @@
             <div class="card-body">
               <input type="text" id="picker"/>
 
-              <br/>
               <label><input type="checkbox" id="rainbows">Rainbows</label>
-              <br/>
               <label><input type="checkbox" id="movement">Movement</label>
-              <br/>
               <div class="ctl-movement">
                 Speed
                 <div class="movement-slider" id="movement_speed"></div>
               </div>
-              <br/>
               <div class="ctl-movement">
                 Size
                 <div class="movement-slider" id="movement_size"></div>
               </div>
-              <br/>
               <label class="ctl-movement"><input type="checkbox" id="movement_vertical" checked="checked">Vertical</label>
-              <br/>
               <label class="ctl-movement"><input type="checkbox" id="movement_random">Randomize</label>
             </div>
           </div>
@@ -182,13 +303,13 @@
                 <div id="blobs_speed_slider"></div>
               </div>
               Size
-              <div id="blobs_red_size">
+              <div id="blobs_red_size" class="color-size">
                 <div id="blobs_red_size_slider" style="background:red"></div>
               </div>
-              <div id="blobs_green_size">
+              <div id="blobs_green_size" class="color-size">
                 <div id="blobs_green_size_slider" style="background:green"></div>
               </div>
-              <div id="blobs_blue_size">
+              <div id="blobs_blue_size" class="color-size">
                 <div id="blobs_blue_size_slider" style="background:blue"></div>
               </div>
             </div>
@@ -203,7 +324,6 @@
           <div id="collapseText" class="collapse" role="tabpanel" aria-labelledby="headingText" data-parent="#accordion">
             <div class="card-body">
               <input type="text" id="textColorPicker"/>
-              <br/>
               <label>Text: <input type="text" id="textInput"/></label>
             </div>
           </div>
@@ -230,15 +350,11 @@
                 <input type="radio" name="demo-mode" value="added" checked/>
                 Use Added Settings
               </label>
-              <br/>
               <label>
                 <input type="radio" name="demo-mode" value="random"/>
                 Randomize All Modes
               </label>
-              <br/>
               <button id="demoNext">Next!</button>
-              <br/>
-              <br/>
               <button id="demoClear">Clear All Added</button>
             </div>
           </div>
